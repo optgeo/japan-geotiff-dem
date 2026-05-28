@@ -36,3 +36,5 @@ When reproducing this product in order to make it available to the general publi
 - Source Cooperative "smartmaps/japan-geotiff-dem"  
   https://source.coop/smartmaps/japan-geotiff-dem
 
+- GitHub "optgeo/japan-geotiff-dem"  
+  https://github.com/optgeo/japan-geotiff-dem
