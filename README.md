@@ -38,3 +38,8 @@ When reproducing this product in order to make it available to the general publi
 
 - GitHub "optgeo/japan-geotiff-dem"  
   https://github.com/optgeo/japan-geotiff-dem
+
+## Changelog
+
+- 2026-05-28: First complete upload done. 
+
