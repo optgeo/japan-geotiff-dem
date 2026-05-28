@@ -1,7 +1,5 @@
 # Japan GeoTIFF DEM Utility for Mapterhorn
 
-**Status:** 🚧 This product is INCOMPLETE!
-
 ## Overview
 
 This repository provides utilities to work with the Japan Geospatial Information Authority’s Digital Elevation Model (DEM) data, available at 10m, 5m, and 1m resolutions, converted into GeoTIFF format.
