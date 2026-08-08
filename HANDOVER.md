@@ -104,47 +104,84 @@ starting with Hokkaido.
   `source-coop/README.md`, superseding D7's file target — same rule,
   new location).
 
-### Current state
+### Current state (updated: 18 of 46 parts downloaded)
 
-- `src/1z/`: 12 of 46 Hokkaido parts (`Z001`–`Z012`). `Z013`, `Z014`
-  downloading as of the last check this session.
-- `src/1/`, `dst/1/`: fully processed through `Z012` — 12,736 mesh
-  GeoTIFFs, ~17 GiB in `dst/1/`. Integrity-checked in two batches
-  (Z008–Z010, Z011–Z012): XML-in vs TIFF-out counts matched exactly
-  both times — no skips, no corruption found from anything on
-  Hidenori's end (manual downloads/placement) so far.
-- `quadrans/1/` not yet run — Hokkaido isn't complete, and `quadrans`
-  isn't incremental (see `CLAUDE.md`), so there's no point running it
-  against a partial prefecture.
-- **`just sync 1` exercised for real, successfully** (see below) —
-  all 12,736 local files confirmed present remotely, 0 missing.
+- `src/1z/`: 18 of 46 Hokkaido parts (`Z001`–`Z018`). Hidenori is
+  downloading serially at night (bandwidth is narrower after dark, so
+  parallel downloads stopped helping — see the "download pace" note
+  below) — expect `Z019`+ to keep arriving one at a time.
+- `src/1/`, `dst/1/`: fully processed through `Z017` as of the last
+  check — 18,519 mesh GeoTIFFs. `Z018` extract+convert was kicked off
+  right before this handover was written; **check
+  `/tmp/convert_z18.log` and `dst/1` count on resume** to see whether
+  it finished cleanly (same integrity check pattern as every batch so
+  far: sum `.xml` entries in the newly-extracted mesh zips, compare to
+  the increase in `dst/1/*.tif` count — see D-entries below, every
+  batch through Z017 matched exactly, no corruption found).
+- `quadrans/1/` still not run — still incomplete, still not worth it
+  per D3.
+- **`just sync 1` last run for real at Z001–Z012** (12,736 files,
+  confirmed present remotely, 0 missing). **Z013 onward (through
+  whatever Z018 converts to) has NOT been synced to Source Cooperative
+  yet** — local `dst/1` is ahead of what's published. Run `just sync 1`
+  again before trusting `smartmaps/japan-geotiff-dem`'s published `1/`
+  prefix to reflect current local state (this matters for
+  `hfu/mapterhorn-japan-bridge`'s `file_list.txt`-based sourcing — see
+  "Related work" below).
+
+### Related work: `hfu/mapterhorn-japan-bridge` (new, 2026-08-08)
+
+This repo's output now also feeds a downstream tiling effort that
+lives entirely in **other** repos/machines — don't duplicate that
+narrative here, read it there instead:
+
+- **What**: turns this repo's published 1m/5m/10m GeoTIFFs into
+  Mapterhorn-format terrain tiles (PMTiles), as a bridge until upstream
+  `mapterhorn/mapterhorn`'s own Japan source picks up this update.
+- **Where the pipeline runs**: `hfu/mapterhorn` (a fork of
+  `mapterhorn/mapterhorn`) on a different machine (`slate`, an M4
+  Mac mini, SSH-accessible) — chosen over doing it on this machine
+  (`aalto`, M1/8GB) because Mapterhorn's aggregation stage needs more
+  RAM and genuine SSD random access than aalto's external HDD offers.
+- **Where the narrative/decisions live**: `hfu/mapterhorn-japan-bridge`
+  (a new, separate repo — deliberately NOT inside the `hfu/mapterhorn`
+  fork, to keep that fork close to upstream). Its `CLAUDE.md`,
+  `DECISIONS.md`, `HANDOVER.md` are the source of truth for that whole
+  effort, including a currently-open viewer bug — check there first
+  before assuming this file has the full picture.
+- **Published product**: `smartmaps/mapterhorn-japan-bridge` on Source
+  Cooperative (a second, separate product from
+  `smartmaps/japan-geotiff-dem`).
 
 ### Next steps
 
-- [ ] As Hidenori places `Z013`–`Z046` into `src/1z/`, re-run
-      `just extract 1 && just convert 1` — both stages skip
-      already-done work, so this is safe to do incrementally per batch
-      rather than waiting for all 46. `just sync 1` is now also safe to
-      re-run incrementally after each batch (additive-only + confirmed
-      working), rather than saving it all for the very end.
+- [ ] Confirm `Z018`'s convert finished cleanly (see above), then keep
+      processing `Z019`–`Z046` as they arrive: `just extract 1 && just
+      convert 1` per batch, same as every batch so far.
+- [ ] Run `just sync 1` to publish everything through the latest
+      converted batch — it's been several batches (Z013–Z018+) since
+      the last real sync. Confirm `source-coop login` is current first
+      (`aws s3 ls s3://smartmaps/japan-geotiff-dem/ --profile
+      source-coop`, never `source-coop creds` directly — see
+      `CLAUDE.md`). If `hfu/mapterhorn-japan-bridge` work is also
+      resuming, it will want this synced first (its `file_list.txt` is
+      built from what's actually published, not from this repo's local
+      state).
 - [ ] **TODO, blocking before this round counts as "the 1m update"**:
       once all 46 Hokkaido parts are downloaded and extracted, tally up
       which meshes carry a 2026 survey date (`20260522`, `20260603`,
-      etc. — already confirmed present, see above) versus older ones,
-      so there's a clear answer to "did the July 2026 update actually
-      land" beyond "some 2026-dated meshes exist somewhere" (see
-      DECISIONS.md D4). If whole sub-regions of Hokkaido never show a
-      2026 date, that's worth surfacing to Hidenori rather than
-      silently proceeding.
+      etc. — already confirmed present) versus older ones, so there's a
+      clear answer to "did the July 2026 update actually land" beyond
+      "some 2026-dated meshes exist somewhere" (see DECISIONS.md D4).
+      If whole sub-regions of Hokkaido never show a 2026 date, that's
+      worth surfacing to Hidenori rather than silently proceeding.
 - [ ] Run `just quadrans 1` for Hokkaido once it's complete.
-- [ ] Before each `just sync 1`: confirm `source-coop login` is still
-      current (`aws s3 ls s3://smartmaps/japan-geotiff-dem/ --profile
-      source-coop` — never `source-coop creds` directly, see
-      `CLAUDE.md`). The session token is genuinely short-lived in
-      practice — it expired mid-session at least twice today already
-      (once during a long full-bucket listing, once just from elapsed
-      time) — so re-check every time rather than assuming an earlier
-      login is still good.
+- [ ] Open question, still undecided (DECISIONS.md D6): does
+      `quadrans/{res}` get its own Source Cooperative sync path? Now
+      somewhat superseded in spirit by the `mapterhorn-japan-bridge`
+      effort (which also produces a Mapterhorn-ready terrain artifact,
+      via a different route) — worth deciding whether `quadrans/` is
+      still needed at all, next time this comes up.
 
 ### `just docs` exercised for real (2026-08-08)
 
