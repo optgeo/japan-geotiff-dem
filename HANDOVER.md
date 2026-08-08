@@ -110,14 +110,9 @@ starting with Hokkaido.
   downloading serially at night (bandwidth is narrower after dark, so
   parallel downloads stopped helping — see the "download pace" note
   below) — expect `Z019`+ to keep arriving one at a time.
-- `src/1/`, `dst/1/`: fully processed through `Z017` as of the last
-  check — 18,519 mesh GeoTIFFs. `Z018` extract+convert was kicked off
-  right before this handover was written; **check
-  `/tmp/convert_z18.log` and `dst/1` count on resume** to see whether
-  it finished cleanly (same integrity check pattern as every batch so
-  far: sum `.xml` entries in the newly-extracted mesh zips, compare to
-  the increase in `dst/1/*.tif` count — see D-entries below, every
-  batch through Z017 matched exactly, no corruption found).
+- `src/1/`, `dst/1/`: fully processed through `Z018` — 20,396 mesh
+  GeoTIFFs, no errors in extract or convert logs (same clean pattern
+  as every batch through Z017).
 - `quadrans/1/` still not run — still incomplete, still not worth it
   per D3.
 - **`just sync 1` last run for real at Z001–Z012** (12,736 files,
