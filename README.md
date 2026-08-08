@@ -2,20 +2,25 @@
 
 ## Overview
 
-This repository provides utilities to work with the Japan Geospatial Information Authority’s Digital Elevation Model (DEM) data, available at 10m, 5m, and 1m resolutions, converted into GeoTIFF format.
+This repository holds the pipeline used to convert the Japan
+Geospatial Information Authority's (GSI, 国土地理院) 基盤地図情報
+Digital Elevation Model (DEM) data — available at 10m, 5m, and 1m
+resolutions — from its native zipped GML distribution into GeoTIFF,
+and publish it to Source Cooperative. See `CLAUDE.md` for the pipeline
+stages (`just extract` / `convert` / `quadrans` / `sync` / `docs`) and
+operational notes, and `DECISIONS.md` for the reasoning behind them.
 
-## Features
-
-- Simplifies working with official DEM data of Japan
-- Multiple resolutions (1m, 5m, 10m)
-- Ready to use with various mapping tools
+For the dataset itself — what's actually published, format, license,
+attribution — see `source-coop/README.md`, which is what's uploaded to
+the product root on Source Cooperative rather than this file.
 
 ## Contents
-- 10/ - 10m resolution DEM
-- 5/ - 5m resolution DEM
-- 1/ - 1m resolution DEM
 
-For additional details, see: [optgeo/japan-geotiff-dem](https://github.com/optgeo/japan-geotiff-dem)
+- `10/` - 10m resolution DEM
+- `5/` - 5m resolution DEM
+- `1/` - 1m resolution DEM
+
+Each resolution folder contains one GeoTIFF per source mesh (EPSG:6668).
 
 ## License
 
@@ -33,13 +38,5 @@ When reproducing this product in order to make it available to the general publi
 
 ## Links
 
-- Source Cooperative "smartmaps/japan-geotiff-dem"  
+- Source Cooperative "smartmaps/japan-geotiff-dem"
   https://source.coop/smartmaps/japan-geotiff-dem
-
-- GitHub "optgeo/japan-geotiff-dem"  
-  https://github.com/optgeo/japan-geotiff-dem
-
-## Changelog
-
-- 2026-05-28: First complete upload done. 
-
