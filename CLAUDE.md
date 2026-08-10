@@ -42,6 +42,33 @@ that once and republishing the result as a clean, uniform,
 directly-fetchable GeoTIFF dataset, so nobody downstream needs to
 repeat the same region-by-region retrieval themselves.
 
+## Current machine and scope (updated 2026-08-11 — read this before assuming anything below)
+
+**Runs on `slate`** (M4 Mac mini, headless/SSH-only,
+`/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo`), not
+`aalto`. `aalto`'s external HDD — this repo's original working-copy
+location (D5) — failed outright on 2026-08-11 (bad enough that even
+`fsck_hfs`, a full system restart, and a full drive power cycle didn't
+restore real read throughput; see `HANDOVER.md` and `DECISIONS.md`
+D11/D12 for the full incident). `slate` is now the only machine with a
+live copy of this project — treat any older reference to `aalto` in
+this file or in git history before 2026-08-11 as stale.
+
+Docker on `slate` runs via **colima**, not Docker Desktop (headless,
+no GUI login flow available) — `colima start -f --mount
+/Volumes/Migrate-2025-04:w` before `convert` will work; a plain
+`colima start -f` only mounts colima's own default scope and silently
+produces empty bind-mounts for anything outside it.
+
+**Scope, as of 2026-08-11: Kyushu/Okinawa only, best-effort, no
+deadline.** Hokkaido is deliberately frozen (not abandoned) after the
+drive failure took all 46 of its region-pack zips with it — resuming
+it means re-downloading all 46 parts from GSI from zero, and should
+only happen after an explicit fresh decision, not by default. Of
+Kyushu/Okinawa's 25 region-pack zips, only 10 (`Z010`-`Z019`) survive;
+the other 15 would also need re-downloading if ever wanted. See
+`DECISIONS.md` D12 for the full reasoning.
+
 ## Pipeline
 
 ```
@@ -176,6 +203,8 @@ the bucket's own file listing instead.
 `just`, `docker` (the `gmldem2tif:latest` image should already be built
 locally — check `docker images` before trying to rebuild it), `ruby`,
 GDAL CLI (`gdalbuildvrt` runs on the host, not in Docker, inside
-`quadrans_script.rb`), `unzip`, `aws` CLI. Docker daemon may need to be
-started manually (`open -a Docker` on macOS) before `convert` or
-`quadrans` will work.
+`quadrans_script.rb`), `unzip`, `aws` CLI, `gh` (for git operations —
+see "Current machine and scope" above). On `slate`, the Docker daemon
+is **colima**, not Docker Desktop: `colima start -f --mount
+/Volumes/Migrate-2025-04:w` before `convert` or `quadrans` will work
+(no GUI `open -a Docker` equivalent on a headless machine).

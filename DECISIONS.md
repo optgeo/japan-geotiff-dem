@@ -160,7 +160,11 @@ the same prefecture, not a sign the download itself is broken.
 
 ## D5: Working copy lives on external storage
 
-**Status**: Accepted
+**Status**: Accepted. **Superseded 2026-08-11 (D12)**: that external
+volume (`aalto`'s HDD) failed outright; the working copy now lives on
+`slate`'s internal-adjacent SSD instead. The storage-headroom reasoning
+below still applies to *why* an external/secondary volume was chosen
+in the first place — just not that specific, now-dead, drive.
 
 **Context**: Full-Japan 1m DEM coverage, converted and mosaicked, will
 not fit comfortably on the internal disk that hosted the repo
@@ -344,3 +348,122 @@ size-based comparison could theoretically miss a legitimate re-upload
 in the exact scenario `--size-only` is designed to skip — acceptable
 tradeoff, but worth remembering if `gmldem2tif`'s Docker image is ever
 rebuilt against a newer toolchain.
+
+## D11: `convert` moved to `slate` (via colima), not fixed in place on `aalto`
+
+**Status**: adopted 2026-08-10. **Superseded 2026-08-11 (D12)**: what
+started as "running in parallel with `aalto`'s own copy of the
+pipeline" became the *only* copy once `aalto`'s drive failed outright.
+
+**Context**: `aalto`'s external USB HDD degraded over 2026-08-10 to
+the point of blocking work outright (see HANDOVER.md's same-day entry
+for the full diagnostic trail) — a controlled test showed real but
+useless throughput (~1.3 already-converted-file skip-checks/second),
+and a plausible-sounding optimization (fewer/larger transferred files)
+measured no improvement, pointing at the drive's raw read bandwidth
+itself as the ceiling, not something fixable by changing how this
+repo's own code accesses it.
+
+**Decision**: rather than wait out or work around `aalto`'s drive,
+stood up this repo's pipeline (Docker image, `Justfile` recipes,
+`aws`/`source-coop` credentials) fresh on `slate`, which already had
+spare fast-SSD capacity for unrelated reasons (see
+`mapterhorn-japan-bridge`'s own decision log for that space having
+just been freed). Chose **colima** over Docker Desktop specifically
+because `slate` is headless (no GUI login flow available over SSH);
+colima is CLI-only end to end. A same-day smoke test (5 mesh zips,
+26 seconds vs. `aalto`'s indefinite stall) confirmed the move was
+worth the setup cost.
+
+**Consequence**: this repo's pipeline no longer has a single canonical
+machine — `aalto` remains the "on-paper" home (this file, `CLAUDE.md`,
+and `HANDOVER.md`'s older entries all still describe it that way) but
+`slate` is doing real conversion work too, under a separate working
+copy (`japan-geotiff-dem-kyushu`) rather than the same checkout.
+**Open question, not resolved**: whether `slate` becomes the permanent
+home for this pipeline (in which case `aalto`'s HDD should probably be
+replaced and the machine's role reconsidered, or this repo's own
+`CLAUDE.md` updated to describe `slate` as primary) or whether this was
+a one-time rescue for today's backlog specifically. Revisit once the
+current Hokkaido/Kyushu-Okinawa backlog is fully drained — don't let
+this ambiguity persist indefinitely, since a split canonical-machine
+setup is confusing for any future session that hasn't read this entry.
+
+**Resolved 2026-08-11, by circumstance rather than by the planned
+revisit-once-drained process (D12)**: `aalto`'s drive failed outright
+before the backlog drained. `slate` is now the sole machine, not
+because the question was deliberately settled but because `aalto`'s
+copy stopped being usable at all.
+
+## D12: `aalto`'s external HDD failed outright; Hokkaido frozen, Kyushu/Okinawa-only, `slate` is now this repo's sole machine
+
+**Status**: Decided 2026-08-11, in effect immediately.
+
+**Context**: The drive D11 already flagged as "severely degraded"
+continued to worsen and, this session, crossed from "very slow" to
+functionally unreadable — see `HANDOVER.md`'s 2026-08-11 entry for the
+full diagnostic sequence (unmount attempts, physical unplug/replug,
+`fsck_hfs` live verification, a full system restart, a full drive
+power cycle, and a 61-file rescue-copy attempt that recovered 0
+files). None of it restored real read throughput. Working hypothesis:
+a ~2019-vintage backup HDD, spun up for sustained real load for the
+first time in ~7 years, failing under exactly that load — plausible
+and not worth further forensic investigation.
+
+**Consequence, not a choice**: the 46 Hokkaido region-pack zips and 15
+not-yet-transferred Kyushu/Okinawa region-pack zips
+(`Z001`-`Z009`/`Z020`-`Z025`) that only ever existed on that drive are
+lost. Only the 10 Kyushu/Okinawa parts (`Z010`-`Z019`) that had
+already reached `slate` via the 2026-08-09/10 `Downloads`-folder fast
+path survive.
+
+**Decision**: Hidenori declined further data-rescue attempts against
+the failed drive (not worth the risk/time relative to the value of
+what's on it) and set two scope decisions:
+
+1. **Hokkaido is frozen** — deliberately set aside this round, not
+   abandoned. (Hidenori's own analogy: "足利尊氏の九州行きのようなもの"
+   — a deliberate strategic narrowing, with the implication of
+   returning to it later, not giving it up.) If resumed later, it
+   starts from zero on raw data (all 46 parts need re-downloading from
+   GSI).
+2. **Kyushu/Okinawa is the sole focus**, best-effort, no hard
+   deadline — proceed as far as available time allows using the 10
+   already-landed region packs, rather than blocking on recovering or
+   re-downloading the other 15.
+
+Separately, since `aalto`'s copy of this **repo itself** (not just the
+raw downloaded data) turned out to have 2026-08-09/2026-08-10 commits
+that were never pushed to GitHub, and is now unrecoverable from that
+machine: **`slate` becomes this repo's sole machine going forward**,
+formalizing what D11 left as an open question. `gh` was
+re-authenticated on `slate` (device-code flow, no loopback tunnel
+needed — simpler than `source-coop login`'s OAuth flow) and a fresh
+`gh repo clone optgeo/japan-geotiff-dem` was made there. This repo's
+own git history genuinely has a gap: everything after `0df1cc2`
+(2026-08-08) until this entry was never committed anywhere and had to
+be reconstructed from cross-references in `mapterhorn-japan-bridge`'s
+own (surviving) `HANDOVER.md` rather than recovered verbatim — see
+that file's 2026-08-09 entry for the explicit "reconstructed, not
+recovered" caveat.
+
+**Consequences**:
+- `aalto`'s copy of this repo, and the failed external drive itself,
+  are safe to erase/disconnect once the live pipeline data
+  (`japan-geotiff-dem-kyushu`'s `src`/`dst`) is migrated into the new
+  git-tracked clone on `slate` — not yet done as of this entry, see
+  `HANDOVER.md`'s next steps.
+- `CLAUDE.md` no longer describes this project as running on `aalto`;
+  updated to describe `slate` as the sole machine.
+- Any future session should **not** re-attempt Hokkaido processing
+  without a fresh, explicit decision to resume it — `jphokkaidodem1`
+  in `hfu/mapterhorn`'s `source-catalog/` stays as-is (stale, never
+  aggregated) until then.
+- **Lesson for committing practice going forward**: this incident is
+  the second time in this project's history (see
+  `mapterhorn-japan-bridge`'s own parallel incident the same day) that
+  multi-day uncommitted local work turned out to be sitting on a
+  single point of failure. Commit more eagerly, even mid-session,
+  rather than treating "the working tree is fine for now" as
+  sufficient — a healthy git history costs little and this is the
+  second time its absence has caused real, unrecoverable loss.

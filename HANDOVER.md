@@ -294,3 +294,452 @@ now lives in a separately-named `sync-mirror` recipe.
   bulk retrieval — see `CLAUDE.md`'s Mission section).
 - Confirming `source-coop login` has been run on this machine before
   any upload step is attempted.
+
+## 2026-08-09: Hokkaido download completed; Kyushu/Okinawa downloads started in parallel
+
+**Reconstructed summary, not the original session log** — the source
+working copy (`aalto`'s external HDD) failed before this entry could be
+committed and pushed; see the 2026-08-11 entry below for the full
+incident. What follows is assembled from cross-references in
+`hfu/mapterhorn-japan-bridge`'s own `HANDOVER.md` (which was read in
+full during the 2026-08-11 recovery session and survives), not from
+this repo's own original prose.
+
+- Hidenori continued downloading Hokkaido's remaining `Z`-parts
+  through GSI's portal by hand over the course of the day, reaching
+  **46/46 parts downloaded** by session end.
+- `extract`/`convert` kept pace incrementally as parts arrived; `just
+  sync 1` was run for real at least once more, publishing through
+  `Z018` (6.0 GiB transferred) with a dated changelog entry via `just
+  docs`.
+- Kyushu/Okinawa 1m downloads were **also started in parallel** this
+  session, per Hidenori's own "北日本・南日本を先行させる" plan —
+  islands/coastline-heavy regions first, to stress-test sea handling
+  in the downstream `mapterhorn-japan-bridge` pipeline, ahead of the
+  larger-landmass regions.
+- Exact per-part timing, any bugs found, and the full narrative this
+  session actually had are not recoverable — this summary exists only
+  to keep the chronology from having a silent gap. Treat any detail
+  not also stated in the 2026-08-10/2026-08-11 entries below as
+  unverified.
+
+## 2026-08-10: `aalto`'s HDD hit a wall; conversion work migrated to `slate`'s SSD; Kyushu/Okinawa fast-tracked via an internal-disk shortcut
+
+Picking up where 2026-08-09 left off: Hokkaido 46/46 downloaded,
+Kyushu/Okinawa downloads continuing in parallel (Hidenori manually
+working through GSI's per-part portal, eventually reaching all 25
+parts today). Extract/convert kept grinding through the backlog on
+`aalto` for most of the day — then got dramatically worse.
+
+### The HDD problem, diagnosed properly this time
+
+2026-08-09's entry already flagged `aalto`'s external USB HDD as slow
+(~0.3-2MB/s). Today it got bad enough to actively block work: a single
+`ls dst/1/*.tif | wc -l` timing out at 120s, a `docker run` for
+`convert` sitting at 0% CPU / zero block-I/O growth for minutes at a
+time. Root-caused through a sequence of tests, documented here because
+the diagnostic *method* is reusable even if this exact drive gets
+replaced:
+
+- **Single-file stat vs. directory/glob enumeration**: `ls -la
+  /path/to/one/known/file.tif` returned instantly even when `ls
+  dir/*.zip` or `ls dir | wc -l` on the same directory hung. This
+  matters diagnostically — it rules out "the whole disk is dead" (a
+  truly failed drive fails single-file reads too) and points at
+  directory-enumeration-heavy operations specifically.
+- **Multi-process contention made it categorically worse, not just
+  additively worse**: `unzip` (still draining the Kyushu/Okinawa
+  extract queue), a `docker run` convert container, `rm -rf` on a
+  ~156-file holding directory, and a 3-second-interval background
+  sweeper script (see 2026-08-09 mapterhorn-japan-bridge entries —
+  `/tmp/kyushu_sweep.sh`, running continuously for ~20+ hours by this
+  point) were all touching the same disk at once. Killing the extract
+  chain and the sweeper, then deleting the sweeper's now-empty holding
+  directory, was necessary before `convert` could make any progress at
+  all — but even fully alone, a single `docker run convert` still only
+  processed ~1.3 files/second (see below), confirming the underlying
+  drive itself, not just contention, was the ceiling.
+- **A controlled single-process re-test** (everything else stopped, one
+  fresh `convert` container, block-I/O and log-line growth sampled at
+  fixed intervals) showed real forward progress but at ~1.3
+  already-converted-mesh skip-checks/second — extrapolated, clearing
+  just the "skip already-done files" pass for Hokkaido's ~900 zips
+  (each ~10-25 sub-tiles) would have taken 2-4.5 hours *before* any new
+  conversion work even started.
+- **A file-count-reduction hypothesis, tested and disproven**: reasoned
+  that transferring 46 large region-pack zips (`src/1z/`) instead of
+  901 already-extracted individual mesh zips (`src/1/`) might be faster
+  by reducing per-file seek overhead, even at similar total bytes.
+  Measured: **no meaningful difference** (still 80KB/s-1.9MB/s,
+  fluctuating). The bottleneck is the drive's raw sustained read
+  bandwidth, not seek count — don't assume a plausible-sounding I/O
+  optimization helps without measuring it.
+- No SMART data available (USB-attached), no logged I/O errors, disk
+  otherwise mounts and reports free space normally — this reads as a
+  drive that has degraded under sustained load rather than one that has
+  outright failed, but the practical effect (workload-blocking) is the
+  same either way. **Recommendation, not yet acted on**: this drive is
+  no longer fit for this workload; replace it (see the same-day
+  Mac-hardware/SSD discussion in `mapterhorn-japan-bridge`'s own
+  session — this incident is the live case study for that discussion).
+
+### The fix: move `convert` (and eventually `extract`) to `slate`
+
+`slate` (the M4 Mac mini already used for `hfu/mapterhorn`'s
+aggregation pipeline, see `mapterhorn-japan-bridge/CLAUDE.md`) has
+~1.4TB free on its own real internal-adjacent SSD
+(`/Volumes/Migrate-2025-04`) as of today (freed up during the same
+session — see that repo's HANDOVER.md). Set up this repo's
+conversion pipeline there from scratch:
+
+- **Docker on `slate`, headless**: `slate` has no display attached
+  (SSH-only). Docker Desktop needs a GUI first-launch permission flow,
+  which doesn't work headless. Used **colima** instead
+  (`brew install colima docker`) — a CLI-only, Docker-API-compatible
+  VM manager built for exactly this (headless CI/server macOS use),
+  using Apple's own Virtualization.framework as its backend on Apple
+  Silicon. No GUI interaction needed anywhere in colima's own setup.
+  - **Gotcha #1**: `colima start -f` alone only mounts colima's default
+    scope (roughly the home directory) into its VM. A bind-mount of
+    `/Volumes/Migrate-2025-04/...` (a *different* volume) into a
+    container silently produced an **empty directory inside the
+    container** — no error, just nothing there, which looked exactly
+    like an application bug (`gmldem2tif.rb`'s `Dir.glob` finding
+    nothing) rather than an infrastructure misconfiguration. Fixed by
+    restarting with `colima start -f --mount
+    /Volumes/Migrate-2025-04:w`. Verified with a plain `docker run
+    --rm -v <path>:/x alpine ls /x` sanity check before trusting the
+    real pipeline's output (or lack of it) again.
+  - **Gotcha #2**: `docker run` initially failed with `docker:
+    error getting credentials - err: exec: "docker-credential-desktop":
+    executable file not found` — a stale `"credsStore": "desktop"` key
+    in `~/.docker/config.json`, left over from an incomplete/empty
+    prior `Docker.app` installation attempt on `slate` (found at
+    `/Applications/Docker.app`, essentially empty — 3 directory entries
+    total, never a real install). Fixed by removing that key from the
+    JSON. Worth checking on any machine that once had Docker Desktop
+    even briefly, before assuming a fresh colima/docker setup is broken.
+  - Built the `gmldem2tif:latest` image from this repo's existing
+    Dockerfile (`docker build -t gmldem2tif .` inside a copy of
+    `github/gmldem2tif`, ~18s, no issues — building *inside* Docker
+    doesn't hit the host's Command Line Tools at all, unlike a native
+    Homebrew source build, see the `source-coop` CLI note below).
+  - **Result**: once both gotchas were fixed, a `just convert 1` smoke
+    test against 5 already-transferred mesh zips finished in **26
+    seconds**, producing real, correctly-georeferenced GeoTIFF output
+    (verified: coordinates, raster dimensions, pixel counts all
+    sane) — vs. hours-to-indefinite on `aalto`.
+
+### Getting Hokkaido's data onto `slate`
+
+Transferring `aalto`'s already-extracted `src/1/` (901 mesh zips) via
+`rsync` was itself bottlenecked by the same degraded `aalto` HDD read
+speed (~0.5-2MB/s per file, matching everything above) — moving the
+*processing* to fast storage doesn't help if the *source data* still
+has to be read off the slow drive first. This transfer was still in
+progress (partial) as of this writing; the region-pack-count
+optimization attempt (above) didn't meaningfully speed it up either.
+
+**A genuinely fast path, found by inspection rather than
+optimization**: Hidenori noticed 10 Kyushu/Okinawa region-pack zips
+(`Z010`-`Z019`, ~20.7GB total) sitting unmoved in `/Users/hfu/Downloads`
+— manually downloaded there by the browser (on `aalto`'s **internal**
+boot SSD, not the external HDD) and never relocated to `src/1z/` on the
+slow volume. Transferring these directly to `slate` averaged
+**6.57MB/s** (peaks past 10MB/s) — 3-10x the external-HDD rate, and,
+unlike the region-pack-count experiment, this actually delivered the
+expected speedup because it changed the *actual bottleneck* (source
+disk) rather than a secondary factor (file count). **Lesson: check
+for a fast-storage copy of the same data before assuming everything
+must flow through whatever slow path it originally arrived by.**
+Verified byte-identical (`ls -la` size comparison, all 10 files) before
+deleting the `Downloads` copies.
+
+Set up a separate `japan-geotiff-dem-kyushu` working copy on `slate`
+(Justfile only — `extract`/`convert`/`sync` recipes copied over, no
+full `git clone` needed for a scratch/test area; HTTPS clone failed
+non-interactively with `could not read Username`, not worth fighting
+for this use case) with an incremental loop (re-run `just extract 1
+&& just convert 1` on a ~3 min cadence, idempotent either way) so
+processing keeps pace automatically as more region packs land.
+
+### `source-coop` CLI on a headless machine, and an OAuth loopback flow without a local browser
+
+`slate` needed its own `aws`/`source-coop` setup to publish directly
+(previously all publishing routed through `aalto`, the only machine
+with these configured — see `mapterhorn-japan-bridge/CLAUDE.md`'s
+repo×machine split, now partially superseded for this specific
+purpose).
+
+- `brew install source-cooperative/tap/source-coop` failed building
+  from source: `slate`'s Command Line Tools don't support the current
+  macOS version (`softwareupdate --list` only offered a full 3.8GB OS
+  update + restart — too disruptive to do casually, not attempted).
+  **Workaround**: `source-coop` is a small statically-ish-linked Rust
+  binary; copied `aalto`'s already-built binary directly (both
+  Apple Silicon, ran immediately with no missing-library issues.
+  Valid general technique for simple CLI binaries when a source build
+  is blocked by toolchain version mismatches on the target machine.
+- `awscli` installed fine via Homebrew (bottled, no compile needed).
+- `source-coop login` uses an **OAuth2 loopback/PKCE flow**: it starts
+  a local callback HTTP server on `slate` (`--port`) and expects a
+  browser to hit `auth.source.coop`, then redirect back to
+  `127.0.0.1:<port>/callback` on the *same machine running the CLI*.
+  With no local browser on a headless `slate`, used **SSH local port
+  forwarding** instead of anything GUI-based (no VNC/Screen Sharing
+  needed): `ssh -N -L 8484:localhost:8484 slate.local` from `aalto`,
+  then `source-coop login --port 8484` on `slate` over a separate SSH
+  session, then opened the resulting `auth.source.coop/oauth2/auth?...`
+  URL in a browser on `aalto` — the forwarded tunnel routed the
+  callback back to `slate` correctly. **Claude opened the URL but did
+  not complete the login itself** — Hidenori authenticated in the
+  browser directly, consistent with the standing rule that account
+  authentication is a human-only step (`CLAUDE.md`'s Source
+  Cooperative publishing section). **This same tunnel-plus-manual-login
+  pattern was reused successfully on 2026-08-11 after the token's ~1hr
+  TTL expired repeatedly — see that entry.**
+- **Near-miss worth flagging**: re-running `source-coop login` with `-v`
+  to see the auth URL also logged the live temporary AWS credentials in
+  plaintext. Deleted the log immediately (short-lived token, low
+  impact) — but this generalizes the existing `source-coop creds`
+  warning to *any* verbose/debug flag on credential-handling CLIs, not
+  just the obviously-named subcommand. Worth remembering next time
+  `-v` gets reached for on any auth-adjacent tool. **Repeated
+  successfully and safely on 2026-08-11**: the `-v` log was deleted
+  immediately after confirming "Authentication successful," before any
+  credential material could be read.
+- Once authenticated, `~/.aws/config` on `slate` got the same
+  `[profile source-coop]` block as `aalto` (`credential_process =
+  source-coop creds`, `endpoint_url = https://data.source.coop`) —
+  verified with `aws s3 ls s3://smartmaps/ --profile source-coop`
+  (same safe verification pattern as always, never `source-coop
+  creds` directly). `just sync 1` from `japan-geotiff-dem-kyushu`
+  uploaded real converted output successfully.
+
+### Current state (updated 2026-08-10, mid-session)
+
+- Hokkaido: 46/46 downloaded (unchanged from 2026-08-09).
+  Extract/convert backlog **partially processed on `aalto`
+  historically** (whatever `dst/1` held as of the 2026-08-09 syncs),
+  **now being finished on `slate`** instead — transfer of the
+  remaining unconverted `src/1` content is in progress, bottlenecked
+  by `aalto`'s degraded HDD read speed as described above. **This
+  transfer never completed — see the 2026-08-11 entry: the drive
+  failed entirely before it finished, and none of the raw region-pack
+  zips made it to `slate` via this path.**
+- Kyushu/Okinawa: all 25 parts downloaded (Hidenori finished today).
+  Parts `Z001`-`Z009` were extracted on `aalto` before the migration
+  (mesh zips held aside from Hokkaido's `src/1` by a sweeper script,
+  now cleaned up — see `mapterhorn-japan-bridge` HANDOVER.md's
+  2026-08-09 entries). Parts `Z010`-`Z019` fast-tracked to `slate` via
+  the `Downloads`-folder shortcut above and are being
+  extracted+converted+synced there incrementally. Parts `Z020`-`Z025`
+  not yet handled — check whether they're on `aalto`'s external HDD
+  (slow path) or reachable via a similar internal-disk shortcut before
+  assuming the slow path.
+- `slate` now has its own working `source-coop`/`aws` setup
+  (`~/.aws/config` profile `source-coop`) and can publish directly —
+  no longer strictly dependent on routing through `aalto` for this
+  repo's own `sync`/`docs` steps, though `aalto` remains the
+  originally-configured machine and nothing here has been migrated
+  back off it. **Superseded 2026-08-11: `slate` is now the sole
+  machine for this repo going forward, see that entry.**
+- `quadrans/1/` still not run (unchanged, still not worth it per D3).
+
+### Lessons learned (2026-08-10)
+
+1. **A "slow" external HDD can get *much* worse under concurrent
+   load, not just proportionally worse** — isolate one process on
+   troubled storage before assuming a fix didn't work; don't stack
+   unzip+convert+delete+background-poller on the same marginal drive
+   and expect any of them to make sense of the results.
+2. **Single-file `stat` succeeding while directory/glob enumeration
+   hangs is a useful, cheap diagnostic** to distinguish "this specific
+   operation pattern is slow" from "the disk is actually dead."
+3. **Measure I/O optimization hypotheses instead of trusting
+   plausible reasoning** — fewer/larger files seemed obviously better
+   for a seek-bound drive; it made no measurable difference here
+   because the real limit was sustained bandwidth, not seek count.
+4. **Moving to fast storage is not automatically a full fix** if the
+   *source* data still has to be read off the slow drive to get there
+   — the win only fully materializes once both ends of a transfer are
+   fast. Always check whether a fast-storage copy of the needed data
+   already exists (e.g. a browser's default download location) before
+   assuming a slow-drive read is unavoidable.
+5. **colima needs an explicit `--mount` for any volume outside its
+   default scope** — the failure mode (empty directory, no error) is
+   easy to misattribute to application code rather than infra config.
+6. **A stray `credsStore` entry in `~/.docker/config.json` from a
+   previous, even incomplete, Docker Desktop install silently breaks
+   `docker pull`/`run`** on a fresh colima setup on the same machine.
+7. **Compiled CLI binaries can often be copied between same-architecture
+   Macs** to sidestep a source-build failure from an outdated toolchain,
+   without needing a disruptive OS/CLT upgrade.
+8. **Headless OAuth loopback logins work via SSH local port forwarding**
+   (`ssh -L`) — no remote desktop / screen sharing required, and this
+   generalizes to any CLI tool using the same "local callback server +
+   browser redirect" pattern.
+9. **Verbose/debug flags on credential-handling tools are a secret-leak
+   risk in their own right**, separate from and in addition to whatever
+   the tool's dedicated "print my credentials" subcommand does — this
+   project's existing rule about `source-coop creds` should be read as
+   covering `-v`/`--verbose` on *any* subcommand too, not just the one
+   explicitly named.
+
+### Blocked on Hidenori (2026-08-10)
+
+- Kyushu/Okinawa parts `Z020`-`Z025`: confirm location (internal disk
+  shortcut vs. `aalto`'s external HDD) before choosing a transfer path.
+  **Resolved 2026-08-11: moot, see that entry — `aalto`'s HDD failed
+  before this could be acted on; those parts are lost and Hokkaido is
+  frozen rather than pursued further via this path.**
+- Decision, not yet made: replace `aalto`'s external HDD, given today
+  demonstrated it's no longer adequate for this workload (see the
+  hardware discussion in `mapterhorn-japan-bridge`'s own session log).
+  **Decided 2026-08-11: moot — the drive failed outright rather than
+  being merely inadequate; retiring it, not replacing it.**
+
+## 2026-08-11: `aalto`'s external HDD failed outright; Hokkaido frozen, Kyushu/Okinawa-only going forward; `slate` becomes this repo's sole machine
+
+Continuing directly from 2026-08-10's in-progress `aalto`→`slate`
+transfer of Hokkaido's remaining raw data. That transfer never
+completed.
+
+### The drive failure
+
+`aalto`'s external HDD (the same drive flagged as severely degraded on
+2026-08-10) went from "very slow" to **effectively unreadable**
+during this session, confirmed through an extensive, escalating
+troubleshooting sequence — full technical detail lives in
+`mapterhorn-japan-bridge`'s own `HANDOVER.md`/`DECISIONS.md` for this
+date, this is the summary relevant to this repo:
+
+- A background rsync of the 46 remaining Hokkaido region-pack zips
+  (and separately, the 15 not-yet-transferred Kyushu/Okinawa parts)
+  hung mid-transfer for an extended period with zero byte progress,
+  despite the process still technically running.
+- Diagnostic steps tried, in order, **none of which restored real read
+  throughput**: killing and restarting the transfer; `diskutil
+  unmount`/`unmountDisk force` (both hung/timed out); a physical
+  USB unplug/replug (metadata operations like `ls`/`stat` recovered,
+  but bulk reads still hung indefinitely); `fsck_hfs -nl` via a live
+  verification pass (came back clean — "The volume github appears to
+  be OK" — Disk Utility's earlier First Aid pass had apparently
+  already repaired real `invalid node structure` B-tree corruption,
+  but this did not fix the underlying read hangs); a full system
+  restart of `aalto`; a full power cycle of the drive itself. **A
+  61-file rescue-copy attempt** (per-file timeout, skip-on-stuck,
+  targeting the 46 missing Hokkaido zips + 15 missing Kyushu/Okinawa
+  zips) recovered **0 of 61 files** — the first few attempts got real
+  `Input/output error` responses (the drive actively failing reads),
+  and every file after that failed even a `stat()` call, indicating
+  the drive degraded further simply from being under sustained access
+  load during the rescue attempt itself.
+- Working hypothesis, offered by Hidenori and consistent with the
+  symptom progression: this was a ~2019-vintage backup HDD, spun up
+  for the first time in roughly 7 years for this project. A long-
+  dormant mechanical drive degrading under its first sustained real
+  load in years is a plausible, almost textbook failure mode — treated
+  as a learning example for this project's own documentation rather
+  than a mystery to keep chasing.
+
+**Consequence: the 46 Hokkaido region-pack zips and the 15
+not-yet-transferred Kyushu/Okinawa region-pack zips (`Z001`-`Z009`,
+`Z020`-`Z025`) are lost.** None of them had reached `slate` (the
+2026-08-10 transfer never finished). The 10 Kyushu/Okinawa parts
+(`Z010`-`Z019`) that took the `Downloads`-folder fast path on
+2026-08-09/10 are unaffected — they already live on `slate`.
+
+### Recovery decision (Hidenori, 2026-08-11)
+
+Rather than pursue further data-rescue attempts against the failed
+drive (explicitly declined — not worth the risk or the time), or
+immediately re-download all 61 missing region-pack zips from GSI's
+portal:
+
+- **Hokkaido is frozen** — deliberately set aside, not pursued this
+  round. (Hidenori's own framing: "足利尊氏の九州行きのようなもの" — a
+  deliberate, temporary strategic narrowing of scope, not an
+  abandonment.) `jphokkaidodem1` in `hfu/mapterhorn`'s
+  `source-catalog/` remains exactly as it was (stale `file_list.txt`,
+  never run through aggregation) — do not resume it without a fresh
+  decision to do so.
+- **Kyushu/Okinawa is the sole focus going forward.** The 10 already-
+  landed region packs (`Z010`-`Z019`) are enough to build real,
+  if partial, bridge coverage — see `mapterhorn-japan-bridge`'s own
+  `HANDOVER.md` for the `jpkyushutest1`/`jpkyushutest5m`/
+  `jpkyushutest10m` source-catalog entries built from this.
+  Best-effort framing: pursue Kyushu/Okinawa as far as it goes with
+  available time, without a hard deadline commitment.
+- If the remaining 15 Kyushu/Okinawa region-pack zips are wanted
+  later, they would need re-downloading from GSI by hand — not
+  attempted this round.
+
+### `slate` becomes this repo's sole machine; `aalto`'s copy is being retired
+
+Given the drive failure, the "which machine is canonical" question
+`DECISIONS.md` D11 (in `mapterhorn-japan-bridge`'s own log) left open
+is now settled by circumstance rather than choice: **`slate` is the
+only machine with a live, working copy of this project's data.**
+`aalto`'s copy — both the raw external-HDD data and, it turns out,
+this **repo's own git history past 2026-08-08** — was never pushed to
+GitHub and is now unrecoverable from that machine.
+
+- **Re-authenticated `gh` on `slate`** (the existing token had
+  expired): `gh auth login --hostname github.com --git-protocol https
+  --web` produces a device code + `https://github.com/login/device`
+  URL — no SSH-tunnel/loopback trickery needed here, unlike
+  `source-coop login`'s OAuth flow, since `gh`'s device-code flow
+  doesn't require a local callback server. Hidenori completed the
+  authorization himself in his own browser, same human-only-auth
+  convention as always.
+- **Cloned a fresh, proper `git clone` of `optgeo/japan-geotiff-dem`
+  onto `slate`** at `/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo`
+  — this repo's actual git history only goes up to `0df1cc2` (2026-08-08),
+  since nothing from 2026-08-09/2026-08-10 was ever pushed. The
+  `japan-geotiff-dem`/`japan-geotiff-dem-kyushu` working directories
+  already on `slate` (used throughout 2026-08-10) were Justfile-only,
+  never real git clones (an earlier HTTPS clone attempt failed
+  non-interactively with `could not read Username`, not fixed at the
+  time) — `gh repo clone` sidesteps that by using the now-authenticated
+  `gh` CLI instead of a bare `git clone` over HTTPS.
+- **This 2026-08-09 entry above is a reconstruction, not a recovery**:
+  the original 2026-08-09 session log was never committed anywhere and
+  is genuinely lost. What's written there was assembled from
+  cross-references in `mapterhorn-japan-bridge`'s own `HANDOVER.md`
+  (read in full this session, before the drive failed) — the 2026-08-10
+  entry above it, by contrast, **is** a faithful, complete recovery,
+  since that file was read here in full earlier in this same session,
+  while `aalto`'s drive was still (barely) readable.
+- **Not yet done**: migrating the live `japan-geotiff-dem-kyushu`
+  working directory's actual data (`src/1z`, `src/1`, `dst/1` — real,
+  in-progress pipeline output, currently mid-run) into this newly
+  git-tracked clone. The git repo's own `.gitignore` already excludes
+  `*.zip`/`*.tif`/`*.vrt`/`*.txt`, so the data directories can live
+  inside the git-tracked path without ever being tracked by git — but
+  moving them safely while the extract/convert/sync loop is actively
+  running needs a deliberate pause-move-resume, not done yet. Until
+  that happens, `japan-geotiff-dem-repo` (git-tracked) and
+  `japan-geotiff-dem-kyushu` (the live working directory) are still
+  two separate paths on `slate`.
+
+### Next steps
+
+- [ ] Migrate `japan-geotiff-dem-kyushu`'s live `src`/`dst` data into
+      `japan-geotiff-dem-repo` (the new git-tracked clone), pausing the
+      extract/convert/sync loop briefly to do it safely, then point the
+      loop at the new location and retire the old Justfile-only
+      directory name.
+- [ ] Once the working copy and git repo are unified on `slate`, this
+      repo's `CLAUDE.md` should describe `slate` as the sole machine —
+      done as part of this same 2026-08-11 update, see `CLAUDE.md`.
+- [ ] `aalto`'s own copy of this repo (and the failed external HDD
+      itself) can be considered safe to erase/disconnect once the
+      `slate` migration above is confirmed complete — not yet acted on.
+- [ ] If Hokkaido is ever resumed, it starts from zero on the raw-data
+      side (all 46 region-pack zips need re-downloading from GSI) —
+      `jphokkaidodem1`'s stale `file_list.txt` in `hfu/mapterhorn` can
+      stay as-is until that decision is made.
+- [ ] Kyushu/Okinawa's remaining 15 region-pack zips (`Z001`-`Z009`,
+      `Z020`-`Z025`) would need re-downloading from GSI if ever wanted
+      — best-effort, no deadline.
