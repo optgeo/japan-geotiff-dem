@@ -398,6 +398,11 @@ copy stopped being usable at all.
 ## D12: `aalto`'s external HDD failed outright; Hokkaido frozen, Kyushu/Okinawa-only, `slate` is now this repo's sole machine
 
 **Status**: Decided 2026-08-11, in effect immediately.
+**Hokkaido-freeze portion superseded 2026-08-12**: Hidenori restarted
+Hokkaido fully from scratch (all 46 region-packs re-downloading via
+the same `aalto`→`slate` relay as Kyushu/Okinawa — see `HANDOVER.md`'s
+2026-08-12 entry); the slate-sole-machine and Kyushu/Okinawa-first
+parts of this decision stand unchanged.
 
 **Context**: The drive D11 already flagged as "severely degraded"
 continued to worsen and, this session, crossed from "very slow" to

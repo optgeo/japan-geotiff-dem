@@ -876,17 +876,97 @@ they're all short.
       effort's eventual retirement condition (see
       `mapterhorn-japan-bridge`'s own `CLAUDE.md`).
 
+## 2026-08-12: Kyushu/Okinawa raw acquisition complete (25/25); `__japan-geotiff-dem` deleted; Hokkaido re-download started, batched instead of relayed live
+
+**All 25 Kyushu/Okinawa region-pack zips (`Z001`-`Z025`) are now on
+`slate`**, each individually verified twice (`unzip -tq` full CRC
+check both right after download on `aalto` and again after landing in
+`src/1z/` on `slate`, plus a byte-size comparison in between) before
+the `aalto`-side copy was deleted. The `Z001`-`Z009`/`Z020`-`Z025`
+recovery relay (flagged as in-progress in the prior entry) is done.
+`extract`/`convert`/`sync` continue to catch up unattended; `sync`
+keeps failing harmlessly on hourly `source-coop login` token expiry,
+as expected.
+
+**`__japan-geotiff-dem` (the ~1.2GB leftover Hokkaido fragment, marked
+for deletion since the prior entry) was deleted** — Hidenori confirmed
+Hokkaido is being redone fully from scratch, making the old partial
+fragment (one `Z001` zip + a handful of pre-refresh `20250507`-vintage
+meshes) obsolete rather than a useful head start.
+
+**Hokkaido re-download started** (Hidenori, via GSI's portal into
+`aalto`'s `~/Downloads`, same fast path as Kyushu/Okinawa) — full
+from-zero redo of all 46 parts, not a resume of the old partial state.
+`Z001`-`Z003` landed, `Z004` in progress as of this entry. **Decided to
+batch-accumulate on `aalto` rather than relay each part to `slate`
+immediately**: `aalto`'s internal SSD has 212GB free (460GB total,
+223GB used) — comfortably enough to hold all 46 parts (~2GB each,
+~92GB total) at once — and processing one-by-one immediately/session
+overhead isn't worth it given 46 parts vs. Kyushu/Okinawa's 25.
+Relay will happen in a batched pass once tokens allow.
+
+**Incident, not caused by this repo's own pipeline**: an unrelated
+`grep` invocation from earlier ad hoc research (a "does the Taiwanese
+hardware angle appear anywhere in these repos' docs" search) was
+accidentally run without an `--include` filter, so it recursed into
+`dst/1/`'s tens of thousands of binary `.tif` files — pinned at ~100%
+CPU on `slate` for 9+ hours before being noticed and killed. Not a
+sign of this repo's own extract/convert/sync loop misbehaving; a
+reminder to always scope `grep`/`find` away from binary data
+directories, and to check `ps aux` before assuming sustained load is
+productive pipeline work.
+
+**Storage/time strategy for a future full-Japan run — captured as a
+TODO, not started** (Hidenori's own framing, deliberately deferred
+given limited session budget): track which pack/zip/GeoTIFF has been
+durably published to Source Cooperative in a lightweight metadata
+store (CSV or a simple KVP file), so intermediate `src/{res}z`,
+`src/{res}`, and even `dst/{res}` files can be deleted aggressively
+once superseded by the S3 copy, rather than kept as a second local
+copy indefinitely. Needs, before attempting: a concrete estimate of
+how much storage a full-Japan (or Hokkaido+Kyushu/Okinawa) run would
+actually need, and whether `slate`'s disk covers it — not yet
+estimated for this repo's own `src`/`dst` footprint at that scale (see
+`mapterhorn-japan-bridge`'s own `HANDOVER.md` for the parallel
+metatile-package angle on the PMTiles side).
+
+### Next steps
+
+- [ ] Batch-relay Hokkaido's accumulating `aalto`-side zips to
+      `slate`'s `src/1z/` once there's budget for it — verify (CRC +
+      size), transfer, re-verify, delete `aalto`-side, same as always,
+      just done as a batch pass instead of per-file.
+- [ ] Once Kyushu/Okinawa's `extract`/`convert`/`sync` fully catches
+      up on all 25 packs, consider another `source-coop/README.md`
+      Changelog entry (full 1m Kyushu/Okinawa coverage, not partial).
+- [ ] Re-run `source-coop login` periodically (roughly hourly) whenever
+      active work needs a working `sync`.
+- [ ] Work out the metadata-driven intermediate-file-deletion scheme
+      above before Hokkaido's `convert` stage starts producing a
+      second national-scale `dst/1` footprint on top of Kyushu/
+      Okinawa's.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem`. Read, in order:
 > `/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo/CLAUDE.md`
-> (this repo now runs entirely on `slate` — `aalto`'s external HDD
-> failed outright on 2026-08-11 and is being disposed of, not
-> repaired), this file's two 2026-08-11 entries (the recovery/policy
-> pivot, then the same-day follow-up), and `DECISIONS.md` D12 (the
-> frozen-Hokkaido/Kyushu-only/slate-sole-machine decision).
+> (runs entirely on `slate`), this file's 2026-08-12 entry (Kyushu/
+> Okinawa raw acquisition complete, Hokkaido redo started and being
+> batched on `aalto` rather than relayed live), and `DECISIONS.md` D12
+> (the slate-sole-machine decision — Hokkaido is no longer frozen as
+> of 2026-08-12, Hidenori restarted it fully from scratch).
+>
+> Check `aalto`'s `~/Downloads` for accumulated
+> `FG-GML-hokkaido-DEM1-*-Z0*.zip`-pattern files and batch-relay
+> whatever's landed to `slate`'s `src/1z/` (verify CRC + size both
+> sides, delete `aalto`-side only after `slate`-side is confirmed).
+>
+> Kyushu/Okinawa: all 25 region-packs are on `slate`;
+> `extract`/`convert`/`sync` are catching up unattended. See
+> `mapterhorn-japan-bridge`'s own `HANDOVER.md` for the downstream
+> PMTiles pipeline's status.
 >
 > **Current scope: Kyushu/Okinawa only, best-effort, no deadline.**
 > Hokkaido is deliberately frozen — do not resume it without checking
