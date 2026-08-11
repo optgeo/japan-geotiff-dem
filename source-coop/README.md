@@ -51,6 +51,11 @@ Information Authority of Japan must be obtained.
 
 ## Changelog
 
+- 2026-08-11: 1m tier refreshed for part of Kyushu/Okinawa (10 of 25
+  GSI region-packs), including 1,829 meshes carrying newer 2026 aerial-
+  laser survey dates (up to 2026-06-03). The remainder of Kyushu/
+  Okinawa is expected in a future update; Hokkaido's own 2026 refresh
+  is not yet included.
 - 2026-05-28: First complete upload done (10m/5m/1m, all prefectures).
 
 ## Feedback / issues
