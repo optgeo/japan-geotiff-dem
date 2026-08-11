@@ -740,6 +740,185 @@ GitHub and is now unrecoverable from that machine.
       side (all 46 region-pack zips need re-downloading from GSI) —
       `jphokkaidodem1`'s stale `file_list.txt` in `hfu/mapterhorn` can
       stay as-is until that decision is made.
-- [ ] Kyushu/Okinawa's remaining 15 region-pack zips (`Z001`-`Z009`,
+- [x] Kyushu/Okinawa's remaining 15 region-pack zips (`Z001`-`Z009`,
       `Z020`-`Z025`) would need re-downloading from GSI if ever wanted
-      — best-effort, no deadline.
+      — best-effort, no deadline. **In progress, see same-day follow-up
+      entry below.**
+
+## 2026-08-11 (same day, follow-up): repo consolidation confirmed healthy; `aalto`'s drive declared a disposal case, not a repair case; first real `slate`-native sync published; remaining-15 region-pack recovery plan started
+
+Continuing directly from the morning's recovery commit (`c8cce4`/
+`d92c811` after this entry's own README update). Hidenori asked
+several practical follow-ups in sequence; recorded here together since
+they're all short.
+
+- **`__japan-geotiff-dem` — a leftover fragment, marked for deletion,
+  not removed yet.** Separately from the `japan-geotiff-dem-kyushu`
+  consolidation (done in the morning's entry), a *third*, older
+  Justfile-only directory turned out to still exist on `slate`
+  (`/Volumes/Migrate-2025-04/github/japan-geotiff-dem`, distinct from
+  both `japan-geotiff-dem-kyushu` and the new git-tracked
+  `japan-geotiff-dem-repo`) — a leftover from the 2026-08-10 in-flight
+  `aalto`→`slate` Hokkaido transfer that never finished. It holds
+  ~1.2GB of real, valid, but low-value data: one complete Hokkaido
+  region-pack zip (`Z001`) plus a handful of already-converted
+  `20250507`-vintage (pre-refresh) meshes from mesh blocks
+  `6239`/`6240`. Since Hokkaido is frozen (this entry's own D12), this
+  isn't worth integrating anywhere — renamed to
+  `__japan-geotiff-dem` (leading double-underscore, this project's
+  ad hoc "safe to delete" signal) rather than deleted outright, in
+  case it's ever useful as a small head start if Hokkaido resumes.
+- **`aalto`'s external HDD: disposal, not repair, is the right call.**
+  Talked through explicitly with Hidenori rather than assumed: the
+  data lost with the drive (46 Hokkaido + 15 Kyushu/Okinawa raw
+  region-pack zips) is public GSI data, re-downloadable in principle,
+  so paying for professional data recovery isn't worth it for
+  non-unique data. Separately, the drive's failure mode (real I/O
+  errors and hangs surviving unmount/replug/`fsck_hfs`/a full system
+  restart/a full drive power-cycle, worsening further under the
+  rescue-script's own read load) is consistent with genuine mechanical/
+  electrical degradation, not just a wedged filesystem — reusing it for
+  *any* future storage role would carry the same risk. Hidenori's own
+  framing: a ~2019 backup drive, spun up for sustained real load for
+  the first time in ~7 years, failing exactly as an aged HDD does under
+  those conditions. Physical destruction before disposal (given the
+  drive's original backup role may hold unrelated old personal data)
+  is Hidenori's own call, not something this project needed to weigh
+  in further on.
+- **Kyushu/Okinawa `Z010`-`Z019` integrity, explicitly re-verified**
+  (Hidenori asked directly, given how much has gone wrong with storage
+  today): all 10 surviving region-pack zips in
+  `japan-geotiff-dem-repo/src/1z/` pass `unzip -tq` (full CRC check of
+  every compressed entry, not just the archive's central directory) —
+  zero errors. Downstream counts also check out: 215 extracted mesh
+  zips, 14,116 converted GeoTIFFs, both matching the running tallies
+  from before the drive failure (i.e. nothing was silently lost in the
+  `japan-geotiff-dem-kyushu` → `japan-geotiff-dem-repo` directory
+  move). 3 random `dst/1` GeoTIFFs spot-checked via `gdalinfo` — all
+  valid GTiff, correct 1125×750 raster size, correct CRS. **Conclusion:
+  the 10 surviving region-packs' data is fully healthy** — today's
+  drive failure claimed the *un-transferred* remainder, not anything
+  already on `slate`.
+- **Recovery plan for the missing 15 region-packs, started.** Same
+  proven fast path as `Z010`-`Z019` originally used: Hidenori downloads
+  each part from GSI's portal into `aalto`'s `~/Downloads` (internal
+  SSD — the *only* viable source now that the external HDD is gone
+  entirely, not just slow), Claude watches for them and transfers to
+  `slate`'s canonical `src/1z/` (now
+  `japan-geotiff-dem-repo/src/1z/`, not the old
+  `japan-geotiff-dem-kyushu` path). Exact numbers needed, confirmed
+  against what's actually on `slate` right now (not assumed from
+  memory): **`Z001`-`Z009` and `Z020`-`Z025`, 15 of 25 total** —
+  `Z010`-`Z019` already present. Hidenori began downloading `Z020`-
+  `Z025` this session; watch `aalto`'s `~/Downloads` for
+  `FG-GML-kyushu_okinawa-DEM1-*-Z0*.zip`-pattern files and relay them
+  as they land, same as the original 2026-08-09/10 fast path.
+- **First real `slate`-native `source-coop` publish of this recovery.**
+  Re-logged-in (`source-coop login --port 8484` over the same SSH
+  tunnel pattern as the morning's `gh` recovery — tunnel reused from
+  earlier in the day rather than rebuilt). `just sync 1` published
+  the full local `dst/1` (14,116 files, `--size-only` incremental) —
+  spot-checked 5 random files afterward directly against S3, all
+  present with matching byte sizes (4 already live since the original
+  2026-05-28 upload, 1 a genuinely new 2026-05-22-vintage mesh from
+  today's Kyushu/Okinawa work). **`source-coop login`'s session token
+  keeps expiring on roughly a 1-hour cadence** (matches the `~1hr
+  expiry` already noted in the `Expiration` field back on
+  2026-08-10) — the unattended `extract`/`convert`/`sync` loop's
+  `sync` step will keep failing harmlessly between manual re-logins;
+  this is expected, not a bug, and doesn't block extract/convert.
+  `source-coop/README.md`'s Changelog got its first real entry since
+  2026-05-28 (1m tier, 10 of 25 Kyushu/Okinawa region-packs, 1,829
+  newer-survey meshes) — published via `just docs`, committed as
+  `d92c811`.
+
+### Current state (updated 2026-08-11, this entry)
+
+- `git`: `japan-geotiff-dem-repo` on `slate` is the sole, canonical,
+  fully git-tracked working copy — `origin/main` at `d92c811`. Both
+  `japan-geotiff-dem-kyushu` (Justfile-only, superseded, deleted) and
+  `__japan-geotiff-dem` (Justfile-only, ~1.2GB of frozen-Hokkaido
+  fragments, marked for deletion) are gone or marked gone; only
+  `japan-geotiff-dem-repo` remains active.
+- Kyushu/Okinawa: 10 of 25 region-packs (`Z010`-`Z019`) verified
+  healthy end to end (raw zip → extracted mesh → converted GeoTIFF →
+  published to S3). 15 remain missing; recovery via the
+  `Downloads`-folder relay is underway.
+- The unattended `extract`/`convert`/`sync` loop (`nohup`+`disown`'d,
+  pid changes each restart — check `ps aux | grep "while true"` on
+  `slate` rather than trusting a specific pid from an old entry) has
+  nothing new to do on `extract`/`convert` until more region-packs
+  land; `sync` will keep intermittently failing on credential expiry
+  until the next manual re-login, harmlessly.
+- `hfu/mapterhorn`'s `jpkyushutest1`/`5m`/`10m` downloads (a separate
+  repo, see `mapterhorn-japan-bridge`'s own `HANDOVER.md`) continue in
+  the background on `slate`, independent of this repo's own pipeline —
+  check that repo's docs for current progress/ETA rather than assuming
+  it's covered here.
+
+### Next steps
+
+- [ ] Keep relaying `Z001`-`Z009`/`Z020`-`Z025` from `aalto`'s
+      `~/Downloads` to `slate`'s `japan-geotiff-dem-repo/src/1z/` as
+      Hidenori downloads them from GSI.
+- [ ] Re-run `source-coop login` periodically (roughly hourly) whenever
+      active work needs a working `sync` — not urgent between sessions,
+      `extract`/`convert` don't need it.
+- [ ] Once more region-packs land, re-run `extract`→`convert`→`sync`
+      (the unattended loop picks this up automatically) and consider
+      another `source-coop/README.md` Changelog entry once a
+      meaningfully larger batch has actually published.
+- [ ] Delete `__japan-geotiff-dem` once Hokkaido is confirmed to stay
+      frozen for good, or fold it back in if Hokkaido is ever resumed
+      — not urgent either way, 1.2GB is negligible against 1.3TB free.
+- [ ] Keep watching for whether upstream `mapterhorn/mapterhorn`'s own
+      `jpdem1a` picks up the July 2026 GSI update — still this whole
+      effort's eventual retirement condition (see
+      `mapterhorn-japan-bridge`'s own `CLAUDE.md`).
+
+## Resume prompt
+
+Paste this after `/clear` to pick up exactly here:
+
+> Resuming `japan-geotiff-dem`. Read, in order:
+> `/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo/CLAUDE.md`
+> (this repo now runs entirely on `slate` — `aalto`'s external HDD
+> failed outright on 2026-08-11 and is being disposed of, not
+> repaired), this file's two 2026-08-11 entries (the recovery/policy
+> pivot, then the same-day follow-up), and `DECISIONS.md` D12 (the
+> frozen-Hokkaido/Kyushu-only/slate-sole-machine decision).
+>
+> **Current scope: Kyushu/Okinawa only, best-effort, no deadline.**
+> Hokkaido is deliberately frozen — do not resume it without checking
+> with Hidenori first. `__japan-geotiff-dem` (a small leftover
+> Hokkaido fragment, ~1.2GB) is marked for deletion, not yet removed.
+>
+> **Immediate state**: of Kyushu/Okinawa's 25 region-pack zips, 10
+> (`Z010`-`Z019`) are verified healthy on `slate`
+> (`japan-geotiff-dem-repo/src/1z/` → `src/1/` → `dst/1/`, 14,116
+> GeoTIFFs, published to
+> `s3://smartmaps/japan-geotiff-dem/1/`). The other 15
+> (`Z001`-`Z009`, `Z020`-`Z025`) are being re-downloaded by Hidenori
+> from GSI's portal into `aalto`'s `~/Downloads` (internal SSD — the
+> only viable path now) and relayed to `slate` as they land. Check
+> `aalto`'s `~/Downloads` for `FG-GML-kyushu_okinawa-DEM1-*-Z0*.zip`
+> files first thing on resume.
+>
+> The unattended `extract`/`convert`/`sync` loop is running on `slate`
+> (`nohup`+`disown`'d — find it with `ps aux | grep "while true"`, pid
+> changes on restart). `sync` needs `source-coop login` refreshed
+> roughly hourly (session token TTL) — re-run via the SSH-tunnel
+> pattern (`ssh -N -L 8484:localhost:8484 slate.local`, then
+> `source-coop login --port 8484` on `slate`, Hidenori completes the
+> browser auth himself; delete any `-v` log immediately after
+> confirming success). `extract`/`convert` don't need login.
+>
+> Once more region-packs land: let the loop absorb them, consider
+> another `source-coop/README.md` Changelog entry once a meaningfully
+> larger batch has published (see `CLAUDE.md`'s rule — only after a
+> real publish, not preemptively).
+>
+> Also check `mapterhorn-japan-bridge`'s own `HANDOVER.md` for the
+> downstream PMTiles-build side (`jpkyushutest1`/`5m`/`10m` downloads
+> on `slate`, a separate repo/pipeline) — likely still running, check
+> current progress/ETA there rather than assuming.
