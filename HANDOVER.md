@@ -946,59 +946,93 @@ metatile-package angle on the PMTiles side).
       second national-scale `dst/1` footprint on top of Kyushu/
       Okinawa's.
 
+## 2026-08-13/14: Kyushu/Okinawa GeoTIFF fully synced; extract/convert/sync loop deliberately stopped; 10-day unattended gap starting
+
+**All 25 Kyushu/Okinawa region-packs' GeoTIFFs are now fully synced to
+Source Cooperative** — the last incremental `sync` (after a fresh
+`source-coop login`) uploaded the final ~1,000-file delta (newer
+2026-survey-date meshes not already covered by the original national
+baseline or the prior partial sync). `extract`/`convert` have nothing
+new to do; `dst/1` holds 34,522 GeoTIFFs.
+
+**The unattended `extract`/`convert`/`sync` while-loop was
+deliberately killed** (2026-08-13 ~01:27 JST, `kill` on the loop's
+`bash -c 'while true; ...'` parent PID) — not a failure, a deliberate
+resource-contention fix. It was re-scanning all 25 zips and
+re-validating 34,500+ `.tif` files every 3 minutes for zero new work,
+while competing for CPU/memory/disk-I/O with the concurrent
+`hfu-mapterhorn` PMTiles `aggregation_run` (see
+`mapterhorn-japan-bridge`'s own `HANDOVER.md` for the full incident —
+a stalled `merge_source()` step visibly resumed within hours of
+stopping this loop). Safe and fully resumable any time (same
+one-liner); nothing was lost, since `extract`/`convert` are idempotent
+and `sync`'s only pending work was already completed before the loop
+was stopped.
+
+**Hokkaido download is nearly complete on `aalto`, deliberately not
+relayed** — Hidenori has been downloading all 46 region-packs from
+GSI into `aalto`'s `~/Downloads`, batching there rather than relaying
+per-file (per the earlier agreed sequencing: relay happens only after
+the current Kyushu/Okinawa PMTiles pipeline completes and the
+`hfu/mapterhorn` upstream merge is done — see
+`mapterhorn-japan-bridge`'s own `HANDOVER.md`). `aalto` has 189GB+
+free, comfortably enough to hold all 46 parts (~92GB) at once.
+
+**10-day unattended gap starting**: Hidenori is stepping away from the
+console (this session) for about 10 days, starting a few hours after
+this entry. Separately, `aalto` itself is being disconnected from the
+network for the same ~10-day window (timing coincides). **Explicit
+decision: Hokkaido stays completely untouched during this gap** — no
+relay to `slate`, no `extract`/`convert`/`sync`, nothing — even though
+the raw downloads will likely be sitting complete in `aalto`'s
+`~/Downloads` well before the gap ends. Do not restart the
+`extract`/`convert`/`sync` loop either, unless there's a specific
+reason to (e.g. a fresh Kyushu/Okinawa delta needs publishing) — it's
+fine left stopped.
+
+### Next steps
+
+- [ ] Once resumed (after the ~10-day gap, or sooner if Hidenori
+      returns early): check `mapterhorn-japan-bridge`'s own
+      `HANDOVER.md` for whether the Kyushu/Okinawa PMTiles pipeline
+      (`aggregation_run`/`downsampling_run`/`bundle.py`) has finished
+      — that gates the `hfu/mapterhorn` upstream merge, which itself
+      gates the Hokkaido relay (see that repo's own sequencing notes).
+- [ ] Do not touch Hokkaido (relay or processing) without confirming
+      the above sequence has actually progressed — do not assume it's
+      safe just because 10 days have passed.
+- [ ] If restarting `extract`/`convert`/`sync`, use the same one-liner
+      documented above; check `mapterhorn-japan-bridge`'s pipeline
+      isn't mid-run first, to avoid repeating the same resource
+      contention this entry describes.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem`. Read, in order:
 > `/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo/CLAUDE.md`
-> (runs entirely on `slate`), this file's 2026-08-12 entry (Kyushu/
-> Okinawa raw acquisition complete, Hokkaido redo started and being
-> batched on `aalto` rather than relayed live), and `DECISIONS.md` D12
-> (the slate-sole-machine decision — Hokkaido is no longer frozen as
-> of 2026-08-12, Hidenori restarted it fully from scratch).
+> (runs entirely on `slate`), this file's 2026-08-13/14 entry (Kyushu/
+> Okinawa GeoTIFF fully synced, extract/convert/sync loop deliberately
+> stopped, Hokkaido complete-but-untouched on `aalto`, 10-day
+> unattended gap), and `DECISIONS.md` D12 (Hokkaido is no longer
+> frozen in principle, but is explicitly on hold for the duration of
+> the 10-day gap described in this entry — don't conflate the two).
 >
-> Check `aalto`'s `~/Downloads` for accumulated
-> `FG-GML-hokkaido-DEM1-*-Z0*.zip`-pattern files and batch-relay
-> whatever's landed to `slate`'s `src/1z/` (verify CRC + size both
-> sides, delete `aalto`-side only after `slate`-side is confirmed).
->
-> Kyushu/Okinawa: all 25 region-packs are on `slate`;
-> `extract`/`convert`/`sync` are catching up unattended. See
+> **Kyushu/Okinawa**: GeoTIFF side is done (all 25 packs synced to
+> `s3://smartmaps/japan-geotiff-dem/1/`). The `extract`/`convert`/
+> `sync` while-loop is intentionally stopped, not crashed — leave it
+> stopped unless there's a real reason to restart it. Check
 > `mapterhorn-japan-bridge`'s own `HANDOVER.md` for the downstream
-> PMTiles pipeline's status.
+> PMTiles pipeline's status — as of this entry, `aggregation_run.py`
+> was still running (started 2026-08-13 04:23 JST), stable, slow,
+> uncertain ETA.
 >
-> **Current scope: Kyushu/Okinawa only, best-effort, no deadline.**
-> Hokkaido is deliberately frozen — do not resume it without checking
-> with Hidenori first. `__japan-geotiff-dem` (a small leftover
-> Hokkaido fragment, ~1.2GB) is marked for deletion, not yet removed.
->
-> **Immediate state**: of Kyushu/Okinawa's 25 region-pack zips, 10
-> (`Z010`-`Z019`) are verified healthy on `slate`
-> (`japan-geotiff-dem-repo/src/1z/` → `src/1/` → `dst/1/`, 14,116
-> GeoTIFFs, published to
-> `s3://smartmaps/japan-geotiff-dem/1/`). The other 15
-> (`Z001`-`Z009`, `Z020`-`Z025`) are being re-downloaded by Hidenori
-> from GSI's portal into `aalto`'s `~/Downloads` (internal SSD — the
-> only viable path now) and relayed to `slate` as they land. Check
-> `aalto`'s `~/Downloads` for `FG-GML-kyushu_okinawa-DEM1-*-Z0*.zip`
-> files first thing on resume.
->
-> The unattended `extract`/`convert`/`sync` loop is running on `slate`
-> (`nohup`+`disown`'d — find it with `ps aux | grep "while true"`, pid
-> changes on restart). `sync` needs `source-coop login` refreshed
-> roughly hourly (session token TTL) — re-run via the SSH-tunnel
-> pattern (`ssh -N -L 8484:localhost:8484 slate.local`, then
-> `source-coop login --port 8484` on `slate`, Hidenori completes the
-> browser auth himself; delete any `-v` log immediately after
-> confirming success). `extract`/`convert` don't need login.
->
-> Once more region-packs land: let the loop absorb them, consider
-> another `source-coop/README.md` Changelog entry once a meaningfully
-> larger batch has published (see `CLAUDE.md`'s rule — only after a
-> real publish, not preemptively).
->
-> Also check `mapterhorn-japan-bridge`'s own `HANDOVER.md` for the
-> downstream PMTiles-build side (`jpkyushutest1`/`5m`/`10m` downloads
-> on `slate`, a separate repo/pipeline) — likely still running, check
-> current progress/ETA there rather than assuming.
+> **Hokkaido**: all 46 raw region-packs are likely sitting complete in
+> `aalto`'s `~/Downloads` by now, but were deliberately left there —
+> do not relay to `slate` or start any processing without first
+> confirming (a) the Kyushu/Okinawa PMTiles pipeline has actually
+> finished, and (b) the `hfu/mapterhorn` upstream merge (2 commits,
+> see `mapterhorn-japan-bridge`'s own `HANDOVER.md`) has happened.
+> Both gate the Hokkaido relay per the agreed sequencing — check
+> `mapterhorn-japan-bridge`'s own doc before assuming either is done.
