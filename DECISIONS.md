@@ -29,7 +29,7 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
 | [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
 | [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, verified on synthetic data | 2026-08-14 |
-| [D15](#d15-process-directly-on-aalto-pack-by-pack-while-slate-is-unreachable) | Process directly on `aalto`, pack by pack, while `slate` is unreachable | Accepted, not yet run end to end | 2026-08-14 |
+| [D15](#d15-process-directly-on-aalto-pack-by-pack-while-slate-is-unreachable) | Process directly on `aalto`, pack by pack, while `slate` is unreachable | Accepted, in active use | 2026-08-14 |
 
 ---
 
@@ -611,8 +611,8 @@ reports true mesh-level counts (`meshes_total`/`meshes_skipped`/
 
 ## D15: process directly on `aalto`, pack by pack, while `slate` is unreachable
 
-**Status**: Accepted, implementation not yet run end to end against a
-real pack (see Consequences)
+**Status**: Accepted, in active use against real Hokkaido packs since
+2026-08-18 (one real bug found and fixed — see Consequences)
 
 **Context**: `slate` (the sole machine per D12) became unreachable
 2026-08-14, not returning until 2026-08-24, right as JCI 2026-09
@@ -660,8 +660,31 @@ Docker-based conversion is a second place this pipeline now runs
 never touch the same region concurrently; if `slate` reconnects before
 `aalto` finishes a Zone, coordinate which machine owns which Zone
 before resuming `slate`'s own loop, rather than letting both grab the
-same pack. Not yet exercised against a real pack end to end (only
-`skip_already_published.py`'s matching logic has synthetic-data
-verification, per D14) — the very next step is running it once,
-carefully, on one real Hokkaido pack before trusting it on the
-46+17+23-pack backlog.
+same pack.
+
+**Follow-up, 2026-08-18**: run for real against Hokkaido, `Z001`
+onward. First 24 packs came back 100% already-published (unchanged
+since the 2026-05-25 national baseline); `Z025` was the first with
+real new content (85/1,283 meshes) and completed successfully end to
+end, `convert`→`sync`→verify all passing. `Z026` also succeeded
+(399 new meshes). **`Z027` then hit a real bug**: `verify` reported
+607 of 937 converted files "not found on S3," which looked like a
+serious data-loss risk — investigated instead of trusting either the
+false-positive report or blindly deleting anyway. Root cause: the
+verify step called `aws s3 ls` once per file, and `source-coop`
+credentials expired partway through that loop (same hourly TTL as
+always) — every call after expiry returned a nonzero exit code, which
+the code conflated with "genuinely absent" rather than "couldn't
+check." Confirmed via a fresh `source-coop login` + manual bulk
+re-check: all 937 files were actually present and correctly sized: the
+original `sync` had fully succeeded, only the *verification* was
+broken. Fixed by replacing the per-file `aws s3 ls` loop with a single
+bulk listing of the whole resolution prefix, compared in memory —
+both faster and immune to a mid-loop credential expiry silently
+corrupting the result. This is exactly the scenario the
+verify-before-delete design (this decision's whole point) exists to
+catch, and it did: no data was lost, nothing was deleted based on the
+false report — but the false report itself was a real bug worth this
+much detail, since a differently-shaped bug in the same spot could
+have caused real harm (e.g. if the logic had been inverted and treated
+verify errors as automatic passes instead of automatic failures).
