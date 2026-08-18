@@ -28,7 +28,7 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D9](#d9-syncres-must-never-pass---delete-for-incremental-per-prefecture-publishing) | `sync <res>` must never pass `--delete` for incremental per-prefecture publishing | Accepted | 2026-08-08 |
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
 | [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
-| [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, unverified | 2026-08-14 |
+| [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, verified on synthetic data | 2026-08-14 |
 
 ---
 
@@ -522,8 +522,8 @@ parameter.
 
 ## D14: Skip `convert` work for meshes already published, using `latest_file_list.txt.gz`
 
-**Status**: Accepted, implementation not yet verified against a real
-`src/{res}/` directory (see Consequences)
+**Status**: Accepted, core logic verified against synthetic data; not
+yet exercised on a real `src/{res}/` directory (see Consequences)
 
 **Context**: `gmldem2tif.rb`'s `tif_valid?` skip check (D3) only looks
 at whether the *local* `dst/{res}/{name}.tif` already exists and opens
@@ -539,9 +539,9 @@ time on output that will never actually get uploaded.
 **Decision**: `scripts/skip_already_published.py {res}` fetches the
 current `{res}/latest_file_list.txt.gz` (D13) via the authenticated
 `source-coop` profile, for consistency with every other command in
-this Justfile — not because plain HTTP access is unavailable (it is;
-see the corrected note in Consequences below). For each
-`src/{res}/*.zip`, it opens the zip (cheap — just
+this Justfile — not because plain HTTP access is unavailable; it's
+actually publicly fetchable (see the corrected note in Consequences
+below). For each `src/{res}/*.zip`, it opens the zip (cheap — just
 reading the entry list, no GDAL/Docker involved) and checks whether
 *every* `.xml` entry's corresponding `.tif` name is already in the
 latest list. If so, the whole zip is moved (not deleted) to
@@ -564,12 +564,19 @@ all (verified against both `japan-geotiff-dem` and, for comparison,
 list.txt.gz` / `obsolete_file_list.txt.gz` URLs (D13) really are
 plainly fetchable by any normal HTTP client — this script's own use of
 `--profile source-coop` is just for consistency with the rest of this
-Justfile, not a hard requirement. The zip-opening and move logic could
-**not** be verified the same way —
-it needs a real `src/{res}/` directory, which only exists on `slate`,
-unreachable from 2026-08-14 until 2026-08-24 (see `HANDOVER.md`). Run
-it on one small region first and read the skip/keep counts before
-trusting it on a full Zone. If a mesh-zip ever contains more than one
+Justfile, not a hard requirement. The zip-opening and move logic was
+then verified with two synthetic zips built by hand on `aalto` (one
+whose `.xml` entry name matched a real, currently-published `1/`
+filename; one with a fabricated, definitely-unpublished name) — the
+script correctly moved the first to `src/1-skip/` and left the second
+in place. This covers the core matching/move logic but is still not
+the same as running against a real `src/{res}/` directory (thousands
+of files, whatever actual zip-internal-entry quirks GSI's downloads
+have, mesh-zips with more than one `.xml` entry) — that still needs
+`slate`, unreachable from 2026-08-14 until 2026-08-24 (see
+`HANDOVER.md`). Run it on one small region first and read the
+skip/keep counts before trusting it on a full Zone. If a mesh-zip ever
+contains more than one
 `.xml` entry with only some already published, the whole zip is kept
 (not partially skipped) — `tif_valid?`'s own per-entry local check
 still applies as a second, finer-grained skip layer during `convert`
