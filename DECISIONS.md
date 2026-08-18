@@ -28,6 +28,7 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D9](#d9-syncres-must-never-pass---delete-for-incremental-per-prefecture-publishing) | `sync <res>` must never pass `--delete` for incremental per-prefecture publishing | Accepted | 2026-08-08 |
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
 | [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
+| [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, unverified | 2026-08-14 |
 
 ---
 
@@ -516,3 +517,48 @@ actual cleanup, if ever wanted, is a separate future decision. Only
 `1/` is generated for the 2026-09 JCI cycle; `5/` and `10/` can use
 the same tool once/if needed, since it already takes `{res}` as a
 parameter.
+
+---
+
+## D14: Skip `convert` work for meshes already published, using `latest_file_list.txt.gz`
+
+**Status**: Accepted, implementation not yet verified against a real
+`src/{res}/` directory (see Consequences)
+
+**Context**: `gmldem2tif.rb`'s `tif_valid?` skip check (D3) only looks
+at whether the *local* `dst/{res}/{name}.tif` already exists and opens
+cleanly — it has no notion of what's already published on Source
+Cooperative. A freshly extracted `src/{res}/` mesh-zip whose content
+is byte-identical to something already on S3 (same mesh, same survey
+date, i.e. unchanged since a previous publish) still gets fully
+re-converted locally before `sync`'s `--size-only` check finally
+discards the redundant upload. For a large region pack where most
+meshes haven't actually been resurveyed, this wastes real Docker/GDAL
+time on output that will never actually get uploaded.
+
+**Decision**: `scripts/skip_already_published.py {res}` fetches the
+current `{res}/latest_file_list.txt.gz` (D13) via the authenticated
+`source-coop` profile — confirmed 2026-08-14 that `data.source.coop`
+is **not** anonymously readable (a plain `urlopen()` gets `403
+Forbidden` even for `README.md`), so this cannot be a plain public
+HTTP fetch. For each `src/{res}/*.zip`, it opens the zip (cheap — just
+reading the entry list, no GDAL/Docker involved) and checks whether
+*every* `.xml` entry's corresponding `.tif` name is already in the
+latest list. If so, the whole zip is moved (not deleted) to
+`src/{res}-skip/`, out of `convert`'s way. A zip with even one
+not-yet-published entry is left alone. Exposed as `just skip-published
+{res}`, run manually before `convert {res}`, not chained
+automatically.
+
+**Consequences**: The output-filename derivation
+(`fetch_latest_names`) was verified against the live bucket from
+`aalto` (4,981 names fetched for `10/`, matching D13's own count). The
+zip-opening and move logic could **not** be verified the same way —
+it needs a real `src/{res}/` directory, which only exists on `slate`,
+unreachable from 2026-08-14 until 2026-08-24 (see `HANDOVER.md`). Run
+it on one small region first and read the skip/keep counts before
+trusting it on a full Zone. If a mesh-zip ever contains more than one
+`.xml` entry with only some already published, the whole zip is kept
+(not partially skipped) — `tif_valid?`'s own per-entry local check
+still applies as a second, finer-grained skip layer during `convert`
+itself, so nothing gets reconverted twice either way.

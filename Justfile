@@ -70,3 +70,12 @@ quadrans res:
 filelists res:
   python3 scripts/build_filelists.py {{res}}
 
+# move any src/{res}/*.zip whose entire content is already published
+# (per the current latest_file_list.txt.gz) aside to src/{res}-skip/,
+# so `convert` doesn't waste Docker/GDAL time reproducing identical
+# output (DECISIONS.md D14). Run before `convert res`, not chained
+# into it automatically -- read its output before trusting it on a
+# full region, especially the first few times.
+skip-published res:
+  python3 scripts/skip_already_published.py {{res}}
+
