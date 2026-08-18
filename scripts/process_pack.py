@@ -93,10 +93,14 @@ def main():
     shutil.copy(pack_path, f'src/{res}z/{pack_path.name}')
 
     r = run(['just', 'extract', res])
-    mesh_count = count_files(f'src/{res}', '*.zip')
+    # NOTE: these are GSI "collection" zips (one per broader area
+    # code), each containing up to ~100 individual mesh .xml files --
+    # not one-zip-per-mesh. See skip_already_published.py's own note
+    # and DECISIONS.md D15's follow-up for how this was confirmed.
+    collection_zip_count = count_files(f'src/{res}', '*.zip')
     record['stages']['extract'] = {
         'status': 'ok' if r.returncode == 0 else 'failed',
-        'mesh_count': mesh_count,
+        'collection_zip_count': collection_zip_count,
     }
     if r.returncode != 0:
         record['stages']['extract']['stderr_tail'] = r.stderr[-500:]
@@ -105,10 +109,20 @@ def main():
     r = run(['just', 'skip-published', res])
     kept = count_files(f'src/{res}', '*.zip')
     skipped = count_files(f'src/{res}-skip', '*.zip')
+    meshes_total = meshes_skipped = meshes_kept = None
+    for line in r.stdout.splitlines():
+        if line.startswith('SUMMARY:'):
+            parts = dict(kv.split('=') for kv in line[len('SUMMARY:'):].split())
+            meshes_total = int(parts.get('meshes_total', 0))
+            meshes_skipped = int(parts.get('meshes_skipped', 0))
+            meshes_kept = int(parts.get('meshes_kept', 0))
     record['stages']['skip_published'] = {
         'status': 'ok' if r.returncode == 0 else 'failed',
-        'kept': kept,
-        'skipped': skipped,
+        'collection_zips_kept': kept,
+        'collection_zips_skipped': skipped,
+        'meshes_total': meshes_total,
+        'meshes_skipped': meshes_skipped,
+        'meshes_kept': meshes_kept,
     }
     if r.returncode != 0:
         record['stages']['skip_published']['stderr_tail'] = r.stderr[-500:]

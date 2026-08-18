@@ -59,14 +59,26 @@ def main():
     latest_names = fetch_latest_names(res)
     print(f'{len(latest_names)} currently-published filenames.')
 
+    # NOTE on terminology: each entry in src/{res}/*.zip found here is
+    # a GSI "collection" zip (one per broader area code, e.g.
+    # FG-GML-624076-DEM1A-20251107.zip) containing up to ~100
+    # individual mesh .xml files with their OWN, possibly differing,
+    # survey dates -- confirmed 2026-08-18 by inspecting a real
+    # Hokkaido pack (see DECISIONS.md D15's follow-up note). A zip is
+    # only skipped if *every* mesh inside it is already published;
+    # otherwise the whole zip is kept for `convert` (which itself,
+    # like this script, opens exactly one level and finds the .xml
+    # entries directly -- no further nesting to worry about).
     src_dir = Path(f'src/{res}')
     skip_dir = Path(f'src/{res}-skip')
     skip_dir.mkdir(exist_ok=True)
 
-    total = 0
-    skipped = 0
+    zips_total = 0
+    zips_skipped = 0
+    meshes_total = 0
+    meshes_skipped = 0
     for zip_path in sorted(src_dir.glob('*.zip')):
-        total += 1
+        zips_total += 1
         try:
             with zipfile.ZipFile(zip_path) as zf:
                 xml_names = [n for n in zf.namelist() if n.lower().endswith('.xml')]
@@ -75,17 +87,25 @@ def main():
             continue
         if not xml_names:
             continue
+        meshes_total += len(xml_names)
         expected_tifs = [n.rsplit('/', 1)[-1].rsplit('.', 1)[0] + '.tif' for n in xml_names]
         if all(t in latest_names for t in expected_tifs):
             zip_path.rename(skip_dir / zip_path.name)
-            skipped += 1
-            print(f'  skip: {zip_path.name} (all {len(xml_names)} entries already published)')
+            zips_skipped += 1
+            meshes_skipped += len(xml_names)
+            print(f'  skip: {zip_path.name} (all {len(xml_names)} meshes already published)')
 
+    meshes_kept = meshes_total - meshes_skipped
     print()
-    print(f'{skipped} / {total} zips fully redundant with already-published '
-          f'data, moved to {skip_dir}/')
-    print(f'{total - skipped} zips remain in {src_dir}/ for `convert`.')
+    print(f'{zips_skipped} / {zips_total} collection-zips fully redundant with '
+          f'already-published data, moved to {skip_dir}/')
+    print(f'{zips_total - zips_skipped} collection-zips remain in {src_dir}/ for `convert`.')
+    print(f'({meshes_total} individual meshes total: {meshes_skipped} already '
+          f'published, {meshes_kept} remaining to convert)')
     print(f'To undo: mv {skip_dir}/*.zip {src_dir}/')
+    print(f'SUMMARY: zips_total={zips_total} zips_skipped={zips_skipped} '
+          f'meshes_total={meshes_total} meshes_skipped={meshes_skipped} '
+          f'meshes_kept={meshes_kept}')
 
 
 if __name__ == '__main__':

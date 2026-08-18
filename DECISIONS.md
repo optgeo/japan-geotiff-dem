@@ -583,6 +583,30 @@ contains more than one
 still applies as a second, finer-grained skip layer during `convert`
 itself, so nothing gets reconverted twice either way.
 
+**Follow-up, 2026-08-18**: real Hokkaido packs revealed each
+`src/{res}/*.zip` after `extract` is actually a GSI "collection" zip
+(named after a broader area code, e.g.
+`FG-GML-624076-DEM1A-20251107.zip`) containing up to ~100 individual
+mesh `.xml` files with their own, independently-varying survey dates —
+not one zip per mesh as the earlier wording implied. This does *not*
+break the skip logic (both this script and `gmldem2tif.rb` itself open
+exactly one level and read `.xml` entries directly, so the actual
+zip-opening code was already correct) — first three real Hokkaido
+packs run through it all came back 100% skipped, which looked
+suspicious enough to verify by hand: fetched the real
+`latest_file_list.txt.gz`, confirmed a live S3 object matching one
+skipped mesh's expected filename (`FG-GML-6240-76-00-DEM1A-20251107.tif`,
+uploaded 2026-05-25 — i.e., part of the original national baseline,
+unchanged since), then cross-checked three more meshes spanning both
+survey dates inside that same collection zip. All matched correctly —
+not a bug, just early Hokkaido packs genuinely being unchanged since
+the 2026-05-28 baseline. Fixed a real (if cosmetic) issue found along
+the way: `process_pack.py`'s logged `mesh_count` was actually counting
+collection-zips, not individual meshes — renamed to
+`collection_zip_count`, and `skip_already_published.py` now also
+reports true mesh-level counts (`meshes_total`/`meshes_skipped`/
+`meshes_kept`) via a parseable `SUMMARY:` line.
+
 ---
 
 ## D15: process directly on `aalto`, pack by pack, while `slate` is unreachable
