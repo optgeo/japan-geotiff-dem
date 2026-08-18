@@ -29,6 +29,7 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
 | [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
 | [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, verified on synthetic data | 2026-08-14 |
+| [D15](#d15-process-directly-on-aalto-pack-by-pack-while-slate-is-unreachable) | Process directly on `aalto`, pack by pack, while `slate` is unreachable | Accepted, not yet run end to end | 2026-08-14 |
 
 ---
 
@@ -581,3 +582,62 @@ contains more than one
 (not partially skipped) — `tif_valid?`'s own per-entry local check
 still applies as a second, finer-grained skip layer during `convert`
 itself, so nothing gets reconverted twice either way.
+
+---
+
+## D15: process directly on `aalto`, pack by pack, while `slate` is unreachable
+
+**Status**: Accepted, implementation not yet run end to end against a
+real pack (see Consequences)
+
+**Context**: `slate` (the sole machine per D12) became unreachable
+2026-08-14, not returning until 2026-08-24, right as JCI 2026-09
+(`unopengis/7#978`) needs steady GeoTIFF→Source Cooperative throughput
+toward a 2026-09-10/15 target. Meanwhile `aalto` already has: (1)
+Hokkaido, Shikoku, and Chugoku region-packs downloaded and CRC-verified
+in `~/Downloads`, (2) a working `gmldem2tif:latest` Docker image
+(built 2026-05-26, confirmed same-day to already reflect
+`unopengis/gmldem2tif`'s latest commit, no rebuild needed), and (3) an
+internal SSD measured at ~1.68GB/s write / ~1.94GB/s read — roughly
+6x `slate`'s external USB SSD (~300MB/s, itself root-caused this same
+week to the `WD Elements SE SSD`'s own native USB 3.0 Micro-B
+interface ceiling, not fixable by a cable swap). `aalto` has only
+96GB free, though — far short of Hokkaido's 87GB of raw packs alone,
+let alone the extracted + converted intermediates on top.
+
+**Decision**: Process region-packs on `aalto` directly, one pack at a
+time, using the exact same `Justfile` recipes this repo already has
+(`extract`/`skip-published`/`convert`/`sync`) rather than writing a
+parallel pipeline — `scripts/process_pack.py {res} {zone}
+{pack_zip_path}` orchestrates one pack through all of them, verifies
+every produced `.tif` is on S3 with a matching byte size (`aws s3 ls`,
+same "verify before delete" discipline already used for the
+`aalto`→`slate` zip relay all session), and only then deletes the
+pack's zip, extracted meshes, and converted GeoTIFFs — keeping peak
+local disk usage to roughly one pack's worth rather than a whole
+Zone's. Refuses to start if `src/{res}z`, `src/{res}`,
+`src/{res}-skip`, or `dst/{res}` aren't empty, so pack isolation can't
+silently break. On any stage failure, nothing is deleted; the failed
+state is left in place for inspection. Every run — success or failure
+— appends one line to `logs/aalto_pack_log.jsonl` (JSON Lines, one
+record per pack: per-stage status, mesh/skip/convert counts, verify
+mismatches if any, whether local data was deleted), committed to this
+repo for traceability. `unopengis/7#978` links to this log rather than
+duplicating its content.
+
+**Consequences**: Packs processed this way must **not** also be
+relayed to `slate`'s `src/1z/` later — they're already fully published,
+so relaying them too would just mean `slate` redundantly re-extracts/
+re-converts data that's already on Source Cooperative (D14's own skip
+logic would catch this at `convert` time, but there's no reason to pay
+even the `extract`/zip-transfer cost twice). `aalto` running its own
+Docker-based conversion is a second place this pipeline now runs
+(previously `slate`-only per D12/D5) — acceptable as long as both
+never touch the same region concurrently; if `slate` reconnects before
+`aalto` finishes a Zone, coordinate which machine owns which Zone
+before resuming `slate`'s own loop, rather than letting both grab the
+same pack. Not yet exercised against a real pack end to end (only
+`skip_already_published.py`'s matching logic has synthetic-data
+verification, per D14) — the very next step is running it once,
+carefully, on one real Hokkaido pack before trusting it on the
+46+17+23-pack backlog.
