@@ -1287,39 +1287,51 @@ D14/D13 but never added to either doc until now); `DECISIONS.md` D15's
 status line updated to reflect three full Zones proven, not just the
 first pack; D16 added for the concurrency incident.
 
-### Current state (updated 2026-08-18, this entry)
+### Current state (updated 2026-08-18, end of this entry — session paused here on Hidenori's instruction)
 
 - Hokkaido: **complete**, 46/46, 10,577 new meshes.
 - Shikoku: **complete**, 17/17, 988 new meshes.
 - Chugoku: **complete**, 23/23, 1,065 new meshes.
-- Kinki: in progress, 2/24 done (`Z003` running), ~21 more packs
-  already downloaded in `~/Downloads`, rest still arriving.
-- Tohoku: download just started, `Z001` onward, 34 packs total, none
-  processed yet.
-- D15/`aalto` running total this session: **87 packs processed, 12,630
-  new meshes** converted/uploaded/verified.
-- `unopengis/7#978`'s Zone table and progress comments are current as
-  of this entry.
+- Kinki: **complete**, 24/24, 946 new meshes. One more credential
+  expiry (`Z023`, same hourly pattern), recovered manually as usual.
+- **Four Zones complete this session, 13,576 new meshes total.**
+- Tohoku: download in progress, `Z001`-`Z008` or so landed as of this
+  entry (Hidenori's own count), 34 packs total, **none processed yet
+  — deliberately paused, see below.**
+- `latest`/`obsolete` file lists rebuilt once more after Kinki
+  finished: 1m tier now 285,259 files (279,005 latest / 6,254
+  obsolete).
+- `unopengis/7#978`'s Zone table and a closing progress comment are
+  current as of this entry.
+
+**Session paused here deliberately**: Hidenori's own call — Tohoku's
+download hasn't caught up enough yet (34 packs, still arriving) to be
+worth processing piecemeal, so stop after Kinki + the file list
+rebuild rather than nibbling at a handful of Tohoku packs now. Resume
+once more of Tohoku has landed — no fixed threshold given, use
+judgment (or ask) when picking this back up.
 
 ### Next steps
 
-- [ ] Finish Kinki (22 packs remaining as of this entry).
-- [ ] Then Tohoku as it downloads (`Z001`-`Z034`, sequential, strictly
-      one `process_pack.py` invocation at a time per D16).
-- [ ] Rebuild `latest`/`obsolete` file lists again once Kinki (or
-      Tohoku) reaches a natural pause point — Hidenori wants this done
-      periodically, not just once at the very end.
+- [ ] **Do not start processing Tohoku until Hidenori says to resume**
+      — this session ended paused by his explicit instruction, not by
+      running out of work.
+- [ ] When resumed: process Tohoku as it downloads (`Z001`-`Z034`,
+      sequential, strictly one `process_pack.py` invocation at a time
+      per D16), then whatever Zone comes after.
+- [ ] Rebuild `latest`/`obsolete` file lists again at the next natural
+      pause point — Hidenori wants this done periodically, not just
+      once at the very end.
 - [ ] Keep re-running `source-coop login` as needed (hourly TTL,
       unchanged) — don't treat a credential error as data loss without
-      checking first (the `Z027`/`Z037`/`Z042`/`Z010` pattern).
+      checking first (the `Z027`/`Z037`/`Z042`/`Z010`/`Z023` pattern).
 - [ ] **Never start a new `process_pack.py` run before the previous
       one's completion notification has actually arrived** (D16) — no
       exceptions, this is exactly how the `Z003`/`Z004` incident
       happened.
 - [ ] Do **not** relay any Zone `aalto` has already fully processed to
       `slate`'s `src/1z/` once it reconnects 2026-08-24 — that's now
-      Hokkaido, Shikoku, and Chugoku, not just whatever was finished
-      before this entry.
+      Hokkaido, Shikoku, Chugoku, and Kinki.
 - [ ] Keep `unopengis/7#978` current as Zones complete — Oliver is
       actively reading it.
 
@@ -1341,21 +1353,28 @@ Paste this after `/clear` to pick up exactly here:
 > at whatever path you're reading this from, not
 > `/Volumes/Migrate-2025-04/...`).
 >
-> **First thing on resume**: check `logs/aalto_pack_log.jsonl`'s tail
-> and `~/Downloads` on `aalto` to see exactly which pack was last
-> processed and what's left — don't assume the Next-steps list above
-> is still current if real time has passed. If a `sync`, `verify`, or
-> `skip-published` step fails with a credentials error, that's normal
-> (hourly TTL) — re-run `source-coop login` and continue; don't treat
-> an auth failure as data loss without checking first (the
-> `Z027`/`Z037`/`Z042`/`Z010` pattern, all recovered cleanly).
+> **First thing on resume**: this session ended **paused deliberately
+> on Hidenori's own instruction**, not because work ran out — Kinki
+> finished (24/24), file lists were rebuilt, then he said to stop
+> because Tohoku's download hadn't caught up yet. So: **do not start
+> processing Tohoku packs automatically on resume** — check with
+> Hidenori first, or check `~/Downloads` yourself and use judgment on
+> whether enough has landed to be worth resuming. Once actually
+> resuming: check `logs/aalto_pack_log.jsonl`'s tail and `~/Downloads`
+> on `aalto` to see exactly what's there — don't assume the Next-steps
+> list above is still current if real time has passed. If a `sync`,
+> `verify`, or `skip-published` step fails with a credentials error,
+> that's normal (hourly TTL) — re-run `source-coop login` and
+> continue; don't treat an auth failure as data loss without checking
+> first (the `Z027`/`Z037`/`Z042`/`Z010`/`Z023` pattern, all recovered
+> cleanly).
 >
 > **Standing rule (D15)**: any Zone `aalto` finishes processing (all
 > packs through `process_pack.py`, deleted locally, uploaded+verified
 > on S3) must **not** be relayed to `slate`'s `src/1z/` once it
 > reconnects — it's already done. As of this entry that's Hokkaido,
-> Shikoku, and Chugoku. Cross-check before restarting `slate`'s own
-> `extract`/`convert`/`sync` loop.
+> Shikoku, Chugoku, and Kinki. Cross-check before restarting `slate`'s
+> own `extract`/`convert`/`sync` loop.
 >
 > **Standing rule (D16)**: never start a new `process_pack.py`
 > invocation for a given `res` until the previous invocation's
@@ -1364,11 +1383,10 @@ Paste this after `/clear` to pick up exactly here:
 > Shikoku concurrency incident happened (caught before any upload,
 > no harm done, but don't repeat it).
 >
-> **Order of remaining work**: finish Kinki (2/24 done as of this
-> entry, `Z003` in progress, rest already downloaded or downloading)
-> → Tohoku (`Z001`-`Z034` sequential, download just started, process
-> as packs arrive) → whatever Zone Hidenori downloads next. Rebuild
-> `latest`/`obsolete` file lists (`just filelists 1`) periodically at
-> natural pauses, not just once at the very end — Hidenori's own
-> preference, safe to run concurrently with pack processing. Update
-> `unopengis/7#978` as Zones complete.
+> **Order of remaining work once resumed**: Tohoku (`Z001`-`Z034`
+> sequential, download in progress — 8/34 landed as of this entry) →
+> whatever Zone Hidenori downloads next. Rebuild `latest`/`obsolete`
+> file lists (`just filelists 1`) periodically at natural pauses, not
+> just once at the very end — Hidenori's own preference, safe to run
+> concurrently with pack processing. Update `unopengis/7#978` as Zones
+> complete.
