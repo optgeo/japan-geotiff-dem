@@ -6,10 +6,14 @@ reproducing identical output. See DECISIONS.md D14.
 
 Usage: python3 scripts/skip_already_published.py <res>
 
-Fetches {res}/latest_file_list.txt.gz fresh each run (via the
-authenticated source-coop profile -- data.source.coop is NOT
-anonymously readable, confirmed 2026-08-14, a 403 even for
-README.md), so it reflects whatever's actually published right now.
+Fetches {res}/latest_file_list.txt.gz fresh each run via the
+authenticated source-coop profile, for consistency with every other
+command in this repo's Justfile -- data.source.coop is actually
+plainly readable by any normal HTTP client (a default Python urllib
+request gets a misleading 403, but that's just its User-Agent getting
+blocked, not a real access-control requirement; confirmed 2026-08-14
+by comparing against a browser-equivalent User-Agent, which gets a
+plain 200 OK with no authentication at all).
 
 Moves fully-redundant zips from src/{res}/ to src/{res}-skip/ (not
 deleted -- reversible, and extract's own src/{res}z/ raw downloads are

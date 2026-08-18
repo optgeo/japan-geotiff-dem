@@ -538,10 +538,10 @@ time on output that will never actually get uploaded.
 
 **Decision**: `scripts/skip_already_published.py {res}` fetches the
 current `{res}/latest_file_list.txt.gz` (D13) via the authenticated
-`source-coop` profile — confirmed 2026-08-14 that `data.source.coop`
-is **not** anonymously readable (a plain `urlopen()` gets `403
-Forbidden` even for `README.md`), so this cannot be a plain public
-HTTP fetch. For each `src/{res}/*.zip`, it opens the zip (cheap — just
+`source-coop` profile, for consistency with every other command in
+this Justfile — not because plain HTTP access is unavailable (it is;
+see the corrected note in Consequences below). For each
+`src/{res}/*.zip`, it opens the zip (cheap — just
 reading the entry list, no GDAL/Docker involved) and checks whether
 *every* `.xml` entry's corresponding `.tif` name is already in the
 latest list. If so, the whole zip is moved (not deleted) to
@@ -552,8 +552,20 @@ automatically.
 
 **Consequences**: The output-filename derivation
 (`fetch_latest_names`) was verified against the live bucket from
-`aalto` (4,981 names fetched for `10/`, matching D13's own count). The
-zip-opening and move logic could **not** be verified the same way —
+`aalto` (4,981 names fetched for `10/`, matching D13's own count).
+**Correction, same day**: an earlier version of this entry claimed
+`data.source.coop` isn't anonymously readable, based on a plain
+`urlopen()` returning `403 Forbidden` even for `README.md`. That was
+wrong — the 403 was Python's default `urllib` User-Agent getting
+blocked, not an access-control requirement. A browser-equivalent
+`User-Agent` header gets a normal `200 OK` with no authentication at
+all (verified against both `japan-geotiff-dem` and, for comparison,
+`mapterhorn-japan-bridge`'s own `japan.pmtiles`). So the `latest_file_
+list.txt.gz` / `obsolete_file_list.txt.gz` URLs (D13) really are
+plainly fetchable by any normal HTTP client — this script's own use of
+`--profile source-coop` is just for consistency with the rest of this
+Justfile, not a hard requirement. The zip-opening and move logic could
+**not** be verified the same way —
 it needs a real `src/{res}/` directory, which only exists on `slate`,
 unreachable from 2026-08-14 until 2026-08-24 (see `HANDOVER.md`). Run
 it on one small region first and read the skip/keep counts before
