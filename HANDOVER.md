@@ -1129,14 +1129,73 @@ same way once Hokkaido's `Z046` is done.
 - [ ] Keep `unopengis/7#978` current as Zones complete — Oliver may be
       watching it.
 
+## 2026-08-18 (same day, follow-up): Chugoku verified complete, Kinki downloading, Oliver's reply, credential-expiry incidents
+
+Quick addendum to the same-day entry above — this is a natural
+`/clear` point, so capturing state precisely rather than letting it
+drift.
+
+**Hokkaido**: 30/46 packs done as of this entry (`Z001`-`Z030`).
+`Z001`-`Z024` all already-published (2026-05-25 baseline). From
+`Z025` on, real new content started appearing — several packs (`Z025`
+85 new, `Z026` 399, `Z028` 1,038, `Z029` 1,344 meshes) converted +
+uploaded + verified successfully. **Two `source-coop` credential-
+expiry incidents this session, both now understood and fixed**:
+`Z027` produced a false "607/937 files missing" verify failure (fixed
+per-file `aws s3 ls` calls conflating auth errors with genuine
+absence — see `DECISIONS.md` D15's follow-up); `Z030`'s `sync` itself
+failed cleanly on expired credentials (the fix from the `Z027`
+incident meant this one failed loudly and correctly instead of
+silently corrupting anything) — re-logged in, re-ran `just sync 1`
+manually, verified via the new bulk-listing method, completed. Neither
+incident lost or corrupted any data; both are documented as real
+incidents in `DECISIONS.md` D15 because a differently-shaped version
+of either bug could have. **16 packs remain** (`Z031`-`Z046`).
+
+**Chugoku**: all 23 packs (Hidenori's own corrected count, not the
+~19 area-based estimate from earlier) downloaded and CRC-verified
+clean on `aalto`. Not yet run through `process_pack.py` — Hokkaido is
+being finished first, in order, per Hidenori's stated preference.
+
+**Kinki (Zone 8)**: 24 packs total (Hidenori's real count); download
+just started.
+
+**Oliver Wipfli replied** (see `unopengis/7#978` for full text): 9/15
+works fine on his end for Mapterhorn's own ingestion; confirmed the
+`latest`/`obsolete` filelist approach, and shared genuinely useful
+practitioner context — Swisstopo does the same "new file per update"
+approach we landed on, while LINZ updates files in place. Hidenori
+sent a reply back noting the pipeline has actually sped up since (D14
+skip-conversion + D15 aalto-direct processing working around `slate`
+being unreachable) — see the issue for the sent text.
+
+**Auth**: `source-coop` sessions expire roughly hourly, same as
+always — expect to re-run `source-coop login` periodically (trivial
+on `aalto`, real desktop, no SSH tunnel needed) whenever a `sync` or
+verify step fails with a credentials-expired error.
+
+### Next steps
+
+- [ ] Finish Hokkaido `Z031`-`Z046`.
+- [ ] Then Chugoku (23 packs, already verified, ready to go).
+- [ ] Then Kinki once its download finishes (24 packs).
+- [ ] Keep re-running `source-coop login` as needed — don't let an
+      expired-credential failure get treated as "file genuinely
+      missing" without checking (the `Z027` lesson).
+- [ ] Do **not** relay any Zone `aalto` has already fully processed to
+      `slate`'s `src/1z/` once it reconnects 2026-08-24.
+- [ ] Keep `unopengis/7#978` current as Zones complete — Oliver is
+      actively reading it.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` / JCI 2026-09. Read, in order: this
-> file's 2026-08-18 entry (D13 latest/obsolete filelists, D14
-> delta-skip conversion, D15 aalto-direct pack processing, Hokkaido
-> progress), `DECISIONS.md` D13/D14/D15 for the full ADRs, and
+> file's two 2026-08-18 entries (D13 latest/obsolete filelists, D14
+> delta-skip conversion, D15 aalto-direct pack processing and its two
+> credential-expiry incidents, Hokkaido/Chugoku/Kinki status, Oliver's
+> reply), `DECISIONS.md` D13/D14/D15 for the full ADRs, and
 > `unopengis/7#978` for the JCI issue itself (Oliver Wipfli
 > conversation, Zone list, progress comments). Note `CLAUDE.md`
 > normally describes this repo as running on `slate` — that's still
@@ -1148,7 +1207,10 @@ Paste this after `/clear` to pick up exactly here:
 > **First thing on resume**: check `logs/aalto_pack_log.jsonl`'s tail
 > and `~/Downloads` on `aalto` to see exactly which pack was last
 > processed and what's left — don't assume the Next-steps list above
-> is still current if real time has passed.
+> is still current if real time has passed. If a `sync` or verify
+> step fails with a credentials error, that's normal (hourly TTL) —
+> re-run `source-coop login` and continue; don't treat an auth failure
+> as data loss without checking (see the `Z027` incident above).
 >
 > **Standing rule**: any Zone `aalto` finishes processing (all packs
 > through `process_pack.py`, deleted locally, uploaded+verified on S3)
@@ -1156,7 +1218,8 @@ Paste this after `/clear` to pick up exactly here:
 > it's already done. Cross-check before restarting `slate`'s own
 > `extract`/`convert`/`sync` loop.
 >
-> **Order of remaining work**: finish Hokkaido (`Z026`-`Z046` as of
-> this entry) → Shikoku (17 packs) → Chugoku (target 23, downloading)
-> → whatever Zone Hidenori downloads next. Update `unopengis/7#978`
+> **Order of remaining work**: finish Hokkaido (`Z031`-`Z046` as of
+> this entry) → Chugoku (23 packs, already downloaded + CRC-verified,
+> ready to go) → Kinki (24 packs, downloading) → whatever Zone
+> Hidenori downloads next. Update `unopengis/7#978`
 > as Zones complete.
