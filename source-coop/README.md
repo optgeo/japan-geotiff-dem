@@ -49,6 +49,22 @@ Both are plain gzipped text, one full `https://data.source.coop/...`
 URL per line — no CSV, no extra fields. Regenerated whenever new data
 lands; safe to re-fetch any time you want the current split.
 
+Direct URLs (Source Cooperative's own browse UI makes these tedious to
+find by clicking through, so they're spelled out here):
+
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/latest_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/obsolete_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/latest_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/obsolete_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/obsolete_file_list.txt.gz>
+
+SYNOPSIS (decompress and read line-by-line without saving to disk):
+
+```sh
+curl -sL https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.txt.gz | gzcat
+```
+
 ## Data source, license, and attribution
 
 Source data: Geospatial Information Authority of Japan (国土地理院),
