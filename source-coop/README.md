@@ -1,4 +1,4 @@
-# Japan DEM (10m / 5m / 1m), as GeoTIFF
+# Japan DEM (10m / 5m / 1m), as Cloud-Native GeoTIFF
 
 Digital Elevation Model (DEM) data for Japan, converted to GeoTIFF from
 the Geospatial Information Authority of Japan's (GSI, 国土地理院)
