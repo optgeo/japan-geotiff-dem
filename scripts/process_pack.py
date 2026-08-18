@@ -39,7 +39,9 @@ def run(cmd):
 
 def dir_empty(path):
     p = Path(path)
-    return not p.exists() or not any(p.iterdir())
+    if not p.exists():
+        return True
+    return not any(child for child in p.iterdir() if child.name != '.gitkeep')
 
 
 def count_files(path, pattern='*'):
