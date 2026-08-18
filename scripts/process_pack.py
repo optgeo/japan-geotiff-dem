@@ -149,25 +149,43 @@ def main():
             record['stages']['sync']['stderr_tail'] = r.stderr[-800:]
             finish('failed', 'sync failed')
 
+        # Bulk-list the whole prefix once rather than one `aws s3 ls`
+        # per file: faster, and avoids the credential-TTL-mid-loop
+        # failure mode where an expired-token error on file N got
+        # misreported as "not found on S3" for every file after N
+        # (real incident, Hokkaido Z027, 2026-08-18 -- see
+        # DECISIONS.md D15's follow-up note).
+        ls = run(['aws', 's3', 'ls', f's3://smartmaps/japan-geotiff-dem/{res}/',
+                  '--profile', 'source-coop'])
+        if ls.returncode != 0:
+            record['stages']['verify'] = {
+                'status': 'failed',
+                'checked': 0,
+                'error': f'bulk s3 ls itself failed: {ls.stderr[-500:]}',
+            }
+            finish('failed', 's3 ls for verification failed -- NOT deleting local data')
+
+        remote_sizes = {}
+        for line in ls.stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                remote_sizes[parts[3]] = int(parts[2])
+
         mismatches = []
         for tif in Path(f'dst/{res}').glob('*.tif'):
             local_size = tif.stat().st_size
-            ls = run(['aws', 's3', 'ls',
-                      f's3://smartmaps/japan-geotiff-dem/{res}/{tif.name}',
-                      '--profile', 'source-coop'])
-            if ls.returncode != 0 or not ls.stdout.strip():
+            if tif.name not in remote_sizes:
                 mismatches.append({'file': tif.name, 'issue': 'not found on S3'})
-                continue
-            remote_size = int(ls.stdout.split()[2])
-            if remote_size != local_size:
+            elif remote_sizes[tif.name] != local_size:
                 mismatches.append({
                     'file': tif.name,
-                    'issue': f'size mismatch local={local_size} remote={remote_size}',
+                    'issue': f'size mismatch local={local_size} remote={remote_sizes[tif.name]}',
                 })
         record['stages']['verify'] = {
             'status': 'ok' if not mismatches else 'failed',
             'checked': converted,
             'mismatches': mismatches[:20],
+            'mismatch_count': len(mismatches),
         }
         if mismatches:
             finish('failed', f'{len(mismatches)} file(s) failed verification '
