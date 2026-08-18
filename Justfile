@@ -63,3 +63,10 @@ sync-mirror res:
 quadrans res:
   ruby scripts/quadrans_script.rb {{res}}
 
+# generate latest_file_list.txt.gz / obsolete_file_list.txt.gz for {res}
+# and upload them into the same resolution prefix (DECISIONS.md D13).
+# Run this after `sync res` has published everything you want reflected --
+# it reads the live bucket listing, not local dst/{res}.
+filelists res:
+  python3 scripts/build_filelists.py {{res}}
+

@@ -32,6 +32,23 @@ prefecture as GSI adds newer aerial-laser survey coverage, so different
 meshes can carry different survey dates even within the same
 prefecture.
 
+## Finding the current file per grid cell
+
+GSI republishes an updated survey for a mesh as a *new* file rather
+than overwriting the old one — so a given grid cell can have more than
+one file in this bucket, at different survey dates (see the filename's
+trailing `YYYYMMDD`). To avoid guessing which one is current, each
+resolution prefix carries two manifests:
+
+- `{res}/latest_file_list.txt.gz` — one URL per line, the current file
+  for every grid cell in that resolution tier.
+- `{res}/obsolete_file_list.txt.gz` — one URL per line, every
+  superseded file (still published, just no longer current).
+
+Both are plain gzipped text, one full `https://data.source.coop/...`
+URL per line — no CSV, no extra fields. Regenerated whenever new data
+lands; safe to re-fetch any time you want the current split.
+
 ## Data source, license, and attribution
 
 Source data: Geospatial Information Authority of Japan (国土地理院),

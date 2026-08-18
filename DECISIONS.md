@@ -27,6 +27,7 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D8](#d8-a-separate-readmemd-for-the-source-cooperative-product-itself) | A separate README.md for the Source Cooperative product itself | Accepted | 2026-08-08 |
 | [D9](#d9-syncres-must-never-pass---delete-for-incremental-per-prefecture-publishing) | `sync <res>` must never pass `--delete` for incremental per-prefecture publishing | Accepted | 2026-08-08 |
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
+| [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
 
 ---
 
@@ -472,3 +473,46 @@ recovered" caveat.
   rather than treating "the working tree is fine for now" as
   sufficient — a healthy git history costs little and this is the
   second time its absence has caused real, unrecoverable loss.
+
+---
+
+## D13: `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity
+
+**Status**: Accepted
+
+**Context**: D9 established that `sync` is additive-only — an updated
+mesh uploads under its own new survey-dated filename rather than
+overwriting the old one, so the old file stays published indefinitely
+alongside the new one. D9 flagged this as "a real gap... not solved by
+this decision" for a downstream consumer to know which of two
+same-cell files is current. Mapterhorn's own `jpdem1a` ingestion
+(maintained by Oliver Wipfli) hit this exact question when discussing
+the JCI 2026-09 upload cycle (see `unopengis/7#978`).
+
+**Decision**: For each resolution tier `{res}`, generate
+`{res}/latest_file_list.txt.gz` and `{res}/obsolete_file_list.txt.gz`:
+plain text, one full `https://data.source.coop/...` URL per line,
+gzip-compressed — no CSV, no extra fields (a file-size column was
+considered and dropped; it wasn't needed for the actual question these
+files answer, and would have broken the plain-text simplicity for no
+real benefit). Group all `.tif` filenames in `{res}/` by everything
+except the trailing `YYYYMMDD` survey date; within each group, the
+newest date is "latest," everything else is "obsolete." A group with
+only one file is trivially "latest." Verified against the live `1/`
+prefix (274,724 files, 270,778 groups, 3,946 with more than one date,
+zero ties) before adopting this as the real format. Implemented in
+`scripts/build_filelists.py`, run via `just filelists {res}`, uploaded
+into the same resolution prefix as the data it describes. Format
+documented in `source-coop/README.md` since it's meant for consumers
+who never touch this GitHub repo.
+
+**Consequences**: A tie at the max date (two files, same cell, same
+survey date, different content) makes the script raise rather than
+guess — should never happen given how GSI dates its releases, but if
+it ever does, it needs a human decision, not a silent pick. This does
+not delete or mirror-sync anything (D9's `--delete` caution still
+applies in full) — `obsolete` files stay published, just labeled;
+actual cleanup, if ever wanted, is a separate future decision. Only
+`1/` is generated for the 2026-09 JCI cycle; `5/` and `10/` can use
+the same tool once/if needed, since it already takes `{res}` as a
+parameter.
