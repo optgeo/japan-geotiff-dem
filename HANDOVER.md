@@ -1006,33 +1006,157 @@ fine left stopped.
       isn't mid-run first, to avoid repeating the same resource
       contention this entry describes.
 
+## 2026-08-18: JCI 2026-09 kickoff — latest/obsolete filelists (D13), delta-skip conversion (D14), aalto-direct pack processing (D15); Hokkaido underway
+
+**Context**: Oliver Wipfli (Mapterhorn lead) asked whether fresh GSI
+1m DEM data could reach Source Cooperative in the next few weeks,
+ahead of Mapterhorn's own October update. This became "**JCI
+2026-09**" (Mapterhorn Japan Continuous Improvement), tracked as a
+single living issue, `unopengis/7#978` — not a new repo; this repo
+remains the pipeline. Hidenori replied (LinkedIn; see the issue for
+the actual sent text) proposing **full national coverage by around
+2026-09-10/15** as a question, not a firm commitment, and offering the
+issue for Oliver to follow. All of the work below happened entirely
+from `aalto`, without `slate` (unreachable 2026-08-14 until
+2026-08-24) — see `DECISIONS.md` D13/D14/D15 for the full ADRs; this
+entry is the narrative.
+
+**D13 — `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz`**:
+resolves D9's old flagged gap (superseded meshes staying published
+forever with no signal of which is current). Plain-text, one full URL
+per line, gzipped, one pair per resolution prefix (`{res}/latest_file_
+list.txt.gz`, `{res}/obsolete_file_list.txt.gz`). Generated and
+published for real against all three resolutions: `1/` (274,724
+files → 270,778 latest / 3,946 obsolete), `5/` (378,618, all latest),
+`10/` (4,981, all latest). Naming settled on `file_list` (underscore),
+matching `hfu-mapterhorn`'s existing convention, after catching the
+inconsistent `filelist` spelling and fixing it everywhere (code,
+`source-coop/README.md`, the already-uploaded S3 objects, the
+`unopengis/7#978` issue text). **Correction caught the same day**: an
+earlier claim that `data.source.coop` needs authentication was wrong —
+a plain `urlopen()` 403 was Python's default User-Agent getting
+blocked, not real access control; a browser-equivalent UA gets a plain
+`200 OK`, no login needed. Fixed in `DECISIONS.md` D14 and the
+`unopengis/7#978` thread.
+
+**D14 — `scripts/skip_already_published.py`**: pre-filters
+`src/{res}/*.zip` before `convert`, moving aside anything whose entire
+content is already in `latest_file_list.txt.gz`, since `gmldem2tif.rb`'s
+own `tif_valid?` only checks local `dst/{res}`, not S3. Verified twice:
+first against two hand-built synthetic zips (one real published
+filename, one fabricated), then — after Hidenori asked a sharp
+question about whether the zip-inside-zip structure was actually being
+opened correctly — against real Hokkaido data. That check surfaced a
+real structural fact worth remembering: **`src/{res}/*.zip` (after
+`extract`) is a GSI "collection" zip covering a broader area code
+(e.g. `FG-GML-624076-DEM1A-20251107.zip`), containing up to ~100
+individual mesh `.xml` files with independently-varying survey dates**
+— not one zip per mesh. Both this script and `gmldem2tif.rb` already
+open exactly one level correctly, so there was no real bug there, but
+`process_pack.py`'s logged `mesh_count` turned out to actually be
+counting collection-zips — renamed to `collection_zip_count`, and
+`skip_already_published.py` now also reports true mesh-level counts.
+Hand-verified 4 real mesh matches against the live bucket (one
+confirmed as an actual S3 object, uploaded 2026-05-25 as part of the
+original national baseline) before trusting the early 100%-skip
+results.
+
+**D15 — process pack-by-pack directly on `aalto`**: with `slate`
+unreachable through 2026-08-24 and JCI's Sept target live, decided not
+to wait. Verified the premise first: `aalto`'s internal SSD measured
+~1.68GB/s write / ~1.94GB/s read, vs. `slate`'s external USB SSD's
+known ~300MB/s ceiling — roughly 6x faster. Docker was installed on
+`aalto` but not running (`open -a Docker` started it); `gmldem2tif:latest`
+was already built locally (2026-05-26) and confirmed same-day to
+already reflect `unopengis/gmldem2tif`'s latest commit (2025-12-07, no
+repo changes since) — no rebuild needed, smoke-tested (Ruby + GDAL
+binding both load fine). Cleared ~11GB of unrelated stopped-project
+Docker images (`senrigan`, `poc-cng-cog-tile`, `kitavolca`,
+`mgrs-pmtiles-toolchain`, `vt-optimizer-rs`, `mzellou/micmac` — all
+Exited 3 months, confirmed with Hidenori before deleting) plus build
+cache, since `aalto` only had 96GB free against Hokkaido's 87GB of raw
+packs alone. `scripts/process_pack.py {res} {zone} {pack_zip_path}`
+does one pack fully in isolation (asserts `src/{res}z`, `src/{res}`,
+`src/{res}-skip`, `dst/{res}` are all empty first) — `extract` →
+`skip-published` → `convert` → `sync` → verify every produced `.tif`
+against S3 by byte size → delete local data only if verification
+passed. Every run appends to `logs/aalto_pack_log.jsonl`, committed to
+this repo (linked from `unopengis/7#978`, not duplicated there) for
+traceability. Two bugs found and fixed on the first real run: `dir_empty()`
+didn't ignore the repo's own `.gitkeep` placeholders (false "not
+empty"); credentials expire hourly same as always, needs a fresh
+`source-coop login` (trivial on `aalto` — real desktop, no SSH tunnel
+needed unlike `slate`).
+
+**Decided**: packs processed this way must **not** also be relayed to
+`slate`'s `src/1z/` later — they're already fully published. Keep
+track of which Zones `aalto` has fully finished so `slate` (once back
+2026-08-24) doesn't redundantly grab the same region.
+
+**Hokkaido progress** (processing in order, Z001→Z046, per Hidenori's
+explicit preference over cherry-picking a more "interesting" pack to
+prove the implementation): `Z001`-`Z024` all came back 100% already-
+published (unchanged since the 2026-05-25 national baseline) — 24
+packs, safely skipped and deleted, zero new uploads needed. **`Z025`
+was the first pack with real new content**: 1,283 meshes total, 85
+new — full pipeline exercised for real (Docker/GDAL convert → `aws s3
+sync` → per-file S3 size verification → local delete), all succeeded,
+reported to `unopengis/7#978`. Remaining `Z026`-`Z046` in progress as
+of this entry — check `logs/aalto_pack_log.jsonl`'s tail for exact
+current position rather than assuming.
+
+**Other Zones staged on `aalto`, not yet run through D15** (only
+Hokkaido is being worked right now): Shikoku (17/17 packs, downloaded
++ CRC-verified) and Chugoku (target 23 packs per Hidenori, downloading
+steadily — check `~/Downloads` for current count). Process these the
+same way once Hokkaido's `Z046` is done.
+
+### Next steps
+
+- [ ] Finish Hokkaido `Z026`-`Z046` via `process_pack.py`, committing
+      `logs/aalto_pack_log.jsonl` periodically.
+- [ ] Then Shikoku (17 packs), then Chugoku (once its download
+      finishes) — same `process_pack.py` flow, zone name changes only.
+- [ ] Do **not** relay any Zone `aalto` has already fully processed to
+      `slate`'s `src/1z/` once reconnected 2026-08-24 — check this
+      file's own progress notes / `logs/aalto_pack_log.jsonl` first.
+- [ ] Once `slate` reconnects: check `mapterhorn-japan-bridge`'s own
+      `HANDOVER.md` for whatever happened to the Kyushu/Okinawa
+      PMTiles prototype (`aggregation_run`/`downsampling_run`/
+      `bundle.py`) during the gap — that side of the project hasn't
+      been touched since 2026-08-14 and is unrelated to the JCI/D15
+      work above.
+- [ ] Keep `unopengis/7#978` current as Zones complete — Oliver may be
+      watching it.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
-> Resuming `japan-geotiff-dem`. Read, in order:
-> `/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo/CLAUDE.md`
-> (runs entirely on `slate`), this file's 2026-08-13/14 entry (Kyushu/
-> Okinawa GeoTIFF fully synced, extract/convert/sync loop deliberately
-> stopped, Hokkaido complete-but-untouched on `aalto`, 10-day
-> unattended gap), and `DECISIONS.md` D12 (Hokkaido is no longer
-> frozen in principle, but is explicitly on hold for the duration of
-> the 10-day gap described in this entry — don't conflate the two).
+> Resuming `japan-geotiff-dem` / JCI 2026-09. Read, in order: this
+> file's 2026-08-18 entry (D13 latest/obsolete filelists, D14
+> delta-skip conversion, D15 aalto-direct pack processing, Hokkaido
+> progress), `DECISIONS.md` D13/D14/D15 for the full ADRs, and
+> `unopengis/7#978` for the JCI issue itself (Oliver Wipfli
+> conversation, Zone list, progress comments). Note `CLAUDE.md`
+> normally describes this repo as running on `slate` — that's still
+> true long-term, but **`slate` is unreachable until 2026-08-24**, so
+> this whole effort has been running from `aalto` instead (a working
+> clone at whatever path you're reading this from, not
+> `/Volumes/Migrate-2025-04/...`).
 >
-> **Kyushu/Okinawa**: GeoTIFF side is done (all 25 packs synced to
-> `s3://smartmaps/japan-geotiff-dem/1/`). The `extract`/`convert`/
-> `sync` while-loop is intentionally stopped, not crashed — leave it
-> stopped unless there's a real reason to restart it. Check
-> `mapterhorn-japan-bridge`'s own `HANDOVER.md` for the downstream
-> PMTiles pipeline's status — as of this entry, `aggregation_run.py`
-> was still running (started 2026-08-13 04:23 JST), stable, slow,
-> uncertain ETA.
+> **First thing on resume**: check `logs/aalto_pack_log.jsonl`'s tail
+> and `~/Downloads` on `aalto` to see exactly which pack was last
+> processed and what's left — don't assume the Next-steps list above
+> is still current if real time has passed.
 >
-> **Hokkaido**: all 46 raw region-packs are likely sitting complete in
-> `aalto`'s `~/Downloads` by now, but were deliberately left there —
-> do not relay to `slate` or start any processing without first
-> confirming (a) the Kyushu/Okinawa PMTiles pipeline has actually
-> finished, and (b) the `hfu/mapterhorn` upstream merge (2 commits,
-> see `mapterhorn-japan-bridge`'s own `HANDOVER.md`) has happened.
-> Both gate the Hokkaido relay per the agreed sequencing — check
-> `mapterhorn-japan-bridge`'s own doc before assuming either is done.
+> **Standing rule**: any Zone `aalto` finishes processing (all packs
+> through `process_pack.py`, deleted locally, uploaded+verified on S3)
+> must **not** be relayed to `slate`'s `src/1z/` once it reconnects —
+> it's already done. Cross-check before restarting `slate`'s own
+> `extract`/`convert`/`sync` loop.
+>
+> **Order of remaining work**: finish Hokkaido (`Z026`-`Z046` as of
+> this entry) → Shikoku (17 packs) → Chugoku (target 23, downloading)
+> → whatever Zone Hidenori downloads next. Update `unopengis/7#978`
+> as Zones complete.
