@@ -1187,39 +1187,188 @@ verify step fails with a credentials-expired error.
 - [ ] Keep `unopengis/7#978` current as Zones complete — Oliver is
       actively reading it.
 
+## 2026-08-18 (continued, post-`/clear`): Hokkaido/Shikoku/Chugoku all complete; Kinki in progress; Tohoku download started; concurrency incident (D16); README improvements
+
+Picked up exactly at the prior entry's resume prompt. `logs/
+aalto_pack_log.jsonl` tail and `~/Downloads` confirmed the prior
+session's state (Hokkaido at `Z030`, Chugoku/Kinki downloaded/
+downloading) before resuming.
+
+**Hokkaido finished: 46/46.** `Z031`-`Z046` processed one at a time.
+`Z037` and `Z042` both hit the same hourly `source-coop`
+credential-expiry pattern as `Z027`/`Z030` — both recovered manually
+(re-login, resume from whichever stage failed, bulk-listing verify),
+no data lost either time. 17 of 46 packs total carried real new
+content; **10,577 new meshes** converted/uploaded/verified for
+Hokkaido overall.
+
+**Shikoku finished: 17/17, 988 new meshes.** Also hit one credential
+expiry (`Z010`, at the `skip-published` stage's own `aws s3 cp` this
+time, not `sync`/`verify` — same root cause, different call site).
+
+**Real incident: `Z003` and `Z004` ran concurrently for about a
+minute**, an operator (Claude) mistake — a shell command with a 30s
+timeout returned control before printing output, and the *next* pack
+was started without waiting for `Z003`'s actual completion
+notification. Both instances shared `src/1z`/`src/1`/`dst/1` with no
+locking between them; `extract` merged both packs' collection-zips
+into one shared `src/1`, `dst/1` had 132 tifs from a mix of both
+before it was caught. **Caught before `sync`** — neither instance had
+uploaded anything yet, so no S3-side cleanup was needed. Both original
+zips in `~/Downloads` were untouched and still CRC-clean (`process_pack.py`
+copies rather than moves into `src/{res}z`). Recovery: killed both
+processes, deleted the contaminated local intermediate state, re-ran
+`Z003` then `Z004` serially from their still-intact Downloads copies.
+Recorded as `DECISIONS.md` D16 — the standing rule now is: never start
+the next `process_pack.py` run until the previous one's completion
+notification has actually arrived, full stop, no exceptions for
+"probably done by now."
+
+**Chugoku finished: 23/23, 1,065 new meshes.** No incidents this time
+— processed cleanly pack by pack, strictly serial per the new D16
+discipline.
+
+**`latest_file_list.txt.gz`/`obsolete_file_list.txt.gz` rebuilt twice
+mid-Hokkaido**, at Hidenori's explicit request to run it in parallel
+with pack processing rather than waiting for a Zone to fully finish
+("不完全であっても file list を更新することは良いことだと思っている" —
+even an incomplete file list is worth publishing). Confirmed safe to
+run concurrently with `process_pack.py`: `just filelists` only touches
+the live S3 listing plus two local files in the repo root, never
+`src/{res}*`/`dst/{res}`. 1m tier ended this session at 283,973 files
+(278,523 latest / 5,450 obsolete) as of the second rebuild, mid-way
+through Hokkaido — further out of date now that Shikoku/Chugoku have
+since landed, which is expected and fine per Hidenori's own framing
+above; rebuild again next natural pause point.
+
+**`source-coop/README.md` improved twice, both Hidenori's own
+suggestions**:
+1. Spelled out all 6 direct `latest`/`obsolete_file_list.txt.gz` URLs
+   (10m/5m/1m × latest/obsolete) plus a `curl | gzcat` SYNOPSIS —
+   Source Cooperative's own browse UI makes these tedious to find by
+   clicking through.
+2. Title changed from "Japan DEM (10m / 5m / 1m), as GeoTIFF" to
+   "...as Cloud-Native GeoTIFF" — verified first against a live
+   published file (`gdalinfo` over `/vsicurl/`): internally tiled
+   (512×512 blocks on a 1125×750 mesh), ZSTD-compressed, genuinely
+   usable via HTTP range reads. Deliberately "Cloud-Native" rather
+   than the stricter "Cloud-Optimized" (COG) term, since this dataset
+   has no overviews (Mapterhorn's own ingestion builds its own
+   pyramid downstream, so overviews at the per-mesh source level would
+   be redundant — confirmed by `quadrans_script.rb`'s explicit
+   `COPY_SRC_OVERVIEWS=NO`). Both changes published via `just docs`
+   immediately after editing.
+
+**Kinki started, in progress**: `Z001`/`Z002` processed (`Z001` fully
+already-published, `Z002` 100 new meshes), `Z003` running as of this
+entry. 24 packs total; Hidenori finished downloading the bulk of them
+during this session.
+
+**Tohoku download started** (Hidenori, per his own message: "ダウン
+ロードは東北に移る。一から順番でいいね？全体で34ある。" — starting
+from `Z001`, sequential, per the established download-order
+convention). 34 packs total, none processed yet.
+
+**`unopengis/7#978` kept current throughout**: Zone table updated
+three times (after Hokkaido finished, after Shikoku/Chugoku progress,
+after Tohoku's download start), plus two comprehensive progress
+comments (per-Zone pack/mesh tallies). Oliver has not replied further
+on the issue itself this session — his earlier reply (documented in
+the prior HANDOVER entry) was via LinkedIn, not posted to the issue.
+
+**`CLAUDE.md`/`README.md`/`DECISIONS.md` brought up to date this
+entry** (Hidenori asked for a general documentation pass): `CLAUDE.md`'s
+"Current machine and scope" section rewritten (was describing the
+2026-08-11 "Kyushu/Okinawa only, frozen Hokkaido" scope, now describes
+JCI 2026-09's full-national push and the temporary `aalto`-direct
+arrangement); both `CLAUDE.md` and root `README.md`'s pipeline-stage
+lists updated to include `skip-published` and `filelists` (added by
+D14/D13 but never added to either doc until now); `DECISIONS.md` D15's
+status line updated to reflect three full Zones proven, not just the
+first pack; D16 added for the concurrency incident.
+
+### Current state (updated 2026-08-18, this entry)
+
+- Hokkaido: **complete**, 46/46, 10,577 new meshes.
+- Shikoku: **complete**, 17/17, 988 new meshes.
+- Chugoku: **complete**, 23/23, 1,065 new meshes.
+- Kinki: in progress, 2/24 done (`Z003` running), ~21 more packs
+  already downloaded in `~/Downloads`, rest still arriving.
+- Tohoku: download just started, `Z001` onward, 34 packs total, none
+  processed yet.
+- D15/`aalto` running total this session: **87 packs processed, 12,630
+  new meshes** converted/uploaded/verified.
+- `unopengis/7#978`'s Zone table and progress comments are current as
+  of this entry.
+
+### Next steps
+
+- [ ] Finish Kinki (22 packs remaining as of this entry).
+- [ ] Then Tohoku as it downloads (`Z001`-`Z034`, sequential, strictly
+      one `process_pack.py` invocation at a time per D16).
+- [ ] Rebuild `latest`/`obsolete` file lists again once Kinki (or
+      Tohoku) reaches a natural pause point — Hidenori wants this done
+      periodically, not just once at the very end.
+- [ ] Keep re-running `source-coop login` as needed (hourly TTL,
+      unchanged) — don't treat a credential error as data loss without
+      checking first (the `Z027`/`Z037`/`Z042`/`Z010` pattern).
+- [ ] **Never start a new `process_pack.py` run before the previous
+      one's completion notification has actually arrived** (D16) — no
+      exceptions, this is exactly how the `Z003`/`Z004` incident
+      happened.
+- [ ] Do **not** relay any Zone `aalto` has already fully processed to
+      `slate`'s `src/1z/` once it reconnects 2026-08-24 — that's now
+      Hokkaido, Shikoku, and Chugoku, not just whatever was finished
+      before this entry.
+- [ ] Keep `unopengis/7#978` current as Zones complete — Oliver is
+      actively reading it.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` / JCI 2026-09. Read, in order: this
-> file's two 2026-08-18 entries (D13 latest/obsolete filelists, D14
-> delta-skip conversion, D15 aalto-direct pack processing and its two
-> credential-expiry incidents, Hokkaido/Chugoku/Kinki status, Oliver's
-> reply), `DECISIONS.md` D13/D14/D15 for the full ADRs, and
-> `unopengis/7#978` for the JCI issue itself (Oliver Wipfli
-> conversation, Zone list, progress comments). Note `CLAUDE.md`
-> normally describes this repo as running on `slate` — that's still
-> true long-term, but **`slate` is unreachable until 2026-08-24**, so
-> this whole effort has been running from `aalto` instead (a working
-> clone at whatever path you're reading this from, not
+> file's 2026-08-18 entries (three total — original kickoff, same-day
+> follow-up, and the "continued" entry covering Hokkaido/Shikoku/
+> Chugoku finishing, Kinki/Tohoku starting, the D16 concurrency
+> incident, and the README/doc updates), `DECISIONS.md` D13-D16 for
+> the full ADRs, and `unopengis/7#978` for the JCI issue itself (Zone
+> list, progress comments — Oliver Wipfli's own reply came via
+> LinkedIn, not posted to the issue). Note `CLAUDE.md` normally
+> describes this repo as running on `slate` — that's still true
+> long-term, but **`slate` is unreachable until 2026-08-24**, so this
+> whole effort has been running from `aalto` instead (a working clone
+> at whatever path you're reading this from, not
 > `/Volumes/Migrate-2025-04/...`).
 >
 > **First thing on resume**: check `logs/aalto_pack_log.jsonl`'s tail
 > and `~/Downloads` on `aalto` to see exactly which pack was last
 > processed and what's left — don't assume the Next-steps list above
-> is still current if real time has passed. If a `sync` or verify
-> step fails with a credentials error, that's normal (hourly TTL) —
-> re-run `source-coop login` and continue; don't treat an auth failure
-> as data loss without checking (see the `Z027` incident above).
+> is still current if real time has passed. If a `sync`, `verify`, or
+> `skip-published` step fails with a credentials error, that's normal
+> (hourly TTL) — re-run `source-coop login` and continue; don't treat
+> an auth failure as data loss without checking first (the
+> `Z027`/`Z037`/`Z042`/`Z010` pattern, all recovered cleanly).
 >
-> **Standing rule**: any Zone `aalto` finishes processing (all packs
-> through `process_pack.py`, deleted locally, uploaded+verified on S3)
-> must **not** be relayed to `slate`'s `src/1z/` once it reconnects —
-> it's already done. Cross-check before restarting `slate`'s own
+> **Standing rule (D15)**: any Zone `aalto` finishes processing (all
+> packs through `process_pack.py`, deleted locally, uploaded+verified
+> on S3) must **not** be relayed to `slate`'s `src/1z/` once it
+> reconnects — it's already done. As of this entry that's Hokkaido,
+> Shikoku, and Chugoku. Cross-check before restarting `slate`'s own
 > `extract`/`convert`/`sync` loop.
 >
-> **Order of remaining work**: finish Hokkaido (`Z031`-`Z046` as of
-> this entry) → Chugoku (23 packs, already downloaded + CRC-verified,
-> ready to go) → Kinki (24 packs, downloading) → whatever Zone
-> Hidenori downloads next. Update `unopengis/7#978`
-> as Zones complete.
+> **Standing rule (D16)**: never start a new `process_pack.py`
+> invocation for a given `res` until the previous invocation's
+> completion has actually been confirmed — no exceptions, no
+> "probably done by now." This is exactly how the `Z003`/`Z004`
+> Shikoku concurrency incident happened (caught before any upload,
+> no harm done, but don't repeat it).
+>
+> **Order of remaining work**: finish Kinki (2/24 done as of this
+> entry, `Z003` in progress, rest already downloaded or downloading)
+> → Tohoku (`Z001`-`Z034` sequential, download just started, process
+> as packs arrive) → whatever Zone Hidenori downloads next. Rebuild
+> `latest`/`obsolete` file lists (`just filelists 1`) periodically at
+> natural pauses, not just once at the very end — Hidenori's own
+> preference, safe to run concurrently with pack processing. Update
+> `unopengis/7#978` as Zones complete.

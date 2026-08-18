@@ -42,44 +42,56 @@ that once and republishing the result as a clean, uniform,
 directly-fetchable GeoTIFF dataset, so nobody downstream needs to
 repeat the same region-by-region retrieval themselves.
 
-## Current machine and scope (updated 2026-08-11 — read this before assuming anything below)
+## Current machine and scope (updated 2026-08-18 — read this before assuming anything below)
 
-**Runs on `slate`** (M4 Mac mini, headless/SSH-only,
-`/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo`), not
-`aalto`. `aalto`'s external HDD — this repo's original working-copy
-location (D5) — failed outright on 2026-08-11 (bad enough that even
-`fsck_hfs`, a full system restart, and a full drive power cycle didn't
-restore real read throughput; see `HANDOVER.md` and `DECISIONS.md`
-D11/D12 for the full incident). `slate` is now the only machine with a
-live copy of this project — treat any older reference to `aalto` in
-this file or in git history before 2026-08-11 as stale.
+**Normally runs on `slate`** (M4 Mac mini, headless/SSH-only,
+`/Volumes/Migrate-2025-04/github/japan-geotiff-dem-repo`) — this is
+still the long-term canonical machine. But `slate` has been
+unreachable since 2026-08-14 (expected back 2026-08-24), and JCI
+2026-09 (see below) needs steady throughput in the meantime, so this
+whole effort has been running from **`aalto`** instead (D15): a
+working clone in whatever directory this file is being read from, not
+`/Volumes/Migrate-2025-04/...`. Once `slate` reconnects, reconcile
+which Zones each machine has already finished (`logs/
+aalto_pack_log.jsonl` is the record for `aalto`'s side) before
+resuming `slate`'s own loop — don't let both grab the same Zone.
 
 Docker on `slate` runs via **colima**, not Docker Desktop (headless,
 no GUI login flow available) — `colima start -f --mount
 /Volumes/Migrate-2025-04:w` before `convert` will work; a plain
 `colima start -f` only mounts colima's own default scope and silently
-produces empty bind-mounts for anything outside it.
+produces empty bind-mounts for anything outside it. On `aalto`, plain
+Docker Desktop works fine (`open -a Docker` if not already running).
 
-**Scope, as of 2026-08-11: Kyushu/Okinawa only, best-effort, no
-deadline.** Hokkaido is deliberately frozen (not abandoned) after the
-drive failure took all 46 of its region-pack zips with it — resuming
-it means re-downloading all 46 parts from GSI from zero, and should
-only happen after an explicit fresh decision, not by default. Of
-Kyushu/Okinawa's 25 region-pack zips, only 10 (`Z010`-`Z019`) survive;
-the other 15 would also need re-downloading if ever wanted. See
-`DECISIONS.md` D12 for the full reasoning.
+**Scope: full national 1m coverage, JCI 2026-09** (see
+`unopengis/7#978` — Mapterhorn Japan Continuous Improvement,
+2026-09-10/15 target, proposed after a conversation with Oliver
+Wipfli). This supersedes the 2026-08-11 "Kyushu/Okinawa only,
+best-effort" scope (D12) — Hokkaido was un-frozen and redone fully
+from scratch (all 46 region-pack zips re-downloaded, since the
+original set was lost in `aalto`'s 2026-08-11 drive failure). As of
+this update, Hokkaido/Shikoku/Chugoku are complete via D15, Kinki is
+in progress, Tohoku downloading next. Track current status in
+`unopengis/7#978`'s Zone table and this file's `HANDOVER.md`, not
+here — it moves too fast for this file to stay current.
 
 ## Pipeline
 
 ```
-just extract <res>   # src/{res}z/*.zip  -> src/{res}/*.zip   (unzip -n, skip existing)
-just convert <res>   # src/{res}/*.zip   -> dst/{res}/*.tif   (docker: gmldem2tif)
-just quadrans <res>  # dst/{res}/*.tif   -> quadrans/{res}/{n,e,s,w}.tif  (LERC mosaic)
-just sync <res>      # dst/{res}         -> s3://smartmaps/japan-geotiff-dem/{res}
-just docs            # source-coop/README.md, INCOMPLETE marker -> same bucket
+just extract <res>         # src/{res}z/*.zip  -> src/{res}/*.zip   (unzip -n, skip existing)
+just skip-published <res>  # src/{res}/*.zip already fully published -> src/{res}-skip/ (DECISIONS.md D14)
+just convert <res>         # src/{res}/*.zip   -> dst/{res}/*.tif   (docker: gmldem2tif)
+just quadrans <res>        # dst/{res}/*.tif   -> quadrans/{res}/{n,e,s,w}.tif  (LERC mosaic)
+just sync <res>            # dst/{res}         -> s3://smartmaps/japan-geotiff-dem/{res}
+just filelists <res>       # live bucket listing -> {res}/latest_file_list.txt.gz + obsolete_file_list.txt.gz (DECISIONS.md D13)
+just docs                  # source-coop/README.md, INCOMPLETE marker -> same bucket
 ```
 
-`res` is `1`, `5`, or `10`.
+`res` is `1`, `5`, or `10`. For processing one region-pack zip end to
+end (extract → skip-published → convert → sync → verify → delete
+local), see `scripts/process_pack.py` (DECISIONS.md D15) — this is
+what's actually been driving `aalto`'s side of JCI 2026-09, rather
+than running the recipes above by hand one at a time.
 
 ### Directory naming
 

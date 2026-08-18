@@ -84,6 +84,12 @@ Information Authority of Japan must be obtained.
 
 ## Changelog
 
+- 2026-08-18: 1m tier refreshed for Hokkaido (full, 46/46 region-packs),
+  Shikoku (full, 17/17), and Chugoku (full, 23/23), plus partial Kinki
+  — 12,630 meshes total carrying newer survey dates. `latest_file_list.
+  txt.gz`/`obsolete_file_list.txt.gz` manifests added for all three
+  resolution tiers (see "Finding the current file per grid cell"
+  above).
 - 2026-08-11: 1m tier refreshed for part of Kyushu/Okinawa (10 of 25
   GSI region-packs), including 1,829 meshes carrying newer 2026 aerial-
   laser survey dates (up to 2026-06-03). The remainder of Kyushu/

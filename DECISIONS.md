@@ -611,8 +611,14 @@ reports true mesh-level counts (`meshes_total`/`meshes_skipped`/
 
 ## D15: process directly on `aalto`, pack by pack, while `slate` is unreachable
 
-**Status**: Accepted, in active use against real Hokkaido packs since
-2026-08-18 (one real bug found and fixed — see Consequences)
+**Status**: Accepted. Proven end to end across three full Zones since
+2026-08-18 — Hokkaido (46/46), Shikoku (17/17), Chugoku (23/23), Kinki
+in progress — 12,630 new meshes converted/uploaded/verified in total.
+The hourly `source-coop` credential-expiry failure mode (see
+Consequences) recurred several more times (Z037, Z042, Z010) beyond
+the original Z027 incident; each time the verify-before-delete design
+caught it cleanly with no data loss, confirming the design holds under
+repeated real-world exercise, not just the first occurrence.
 
 **Context**: `slate` (the sole machine per D12) became unreachable
 2026-08-14, not returning until 2026-08-24, right as JCI 2026-09
@@ -688,3 +694,51 @@ false report — but the false report itself was a real bug worth this
 much detail, since a differently-shaped bug in the same spot could
 have caused real harm (e.g. if the logic had been inverted and treated
 verify errors as automatic passes instead of automatic failures).
+
+---
+
+## D16: `process_pack.py` runs must be strictly serial — no cross-invocation locking exists
+
+**Status**: Accepted, operational rule (not a code change)
+
+**Context**: 2026-08-18, mid-Shikoku: a second `process_pack.py` run
+(Z004) was started before the previous run's (Z003) completion
+notification had arrived. Both instances share the exact same
+directories for a given `res` (`src/{res}z`, `src/{res}`,
+`src/{res}-skip`, `dst/{res}`) — there is no lock file or PID check.
+The isolation-check in D15 (`dir_empty()` at start) only guards
+*sequential* misuse (starting a new pack while a previous pack's
+output is still sitting there unprocessed); it does nothing against
+two processes racing to populate the same empty directories
+concurrently. Both instances proceeded past their own empty-check,
+`extract` merged both packs' collection-zips into one shared `src/1`,
+and `dst/1` began filling with a mix of both packs' converted output.
+
+**Caught before any harm**: neither instance had reached `sync` yet
+when the mistake was noticed (both processes killed immediately by
+PID). Nothing had been uploaded, so nothing needed to be rolled back
+on the S3 side. The two original pack zips in `~/Downloads` were
+untouched (`process_pack.py` copies into `src/{res}z`, never moves),
+confirmed still CRC-clean afterward. Recovery was simply: delete the
+contaminated local intermediate state (`src/1z`, `src/1`, `src/1-skip`,
+`dst/1`), then re-run each pack serially from its still-intact
+Downloads copy.
+
+**Decision**: never start a new `process_pack.py` invocation for a
+given `res` until the previous invocation's completion (success or
+failure) has actually been confirmed — not "probably done by now."
+This applies equally to the manual credential-expiry recovery flow
+(D15 Consequences) — don't start the next pack while a manual
+`sync`/verify recovery for the previous one is still in flight.
+
+**Consequences**: This is purely a process discipline rule, not a code
+fix — `process_pack.py` itself was not changed, since adding real
+locking (e.g. a lockfile) would be defensive complexity for a failure
+mode that's fully avoidable by not making the mistake in the first
+place, given there's already a human/agent in the loop watching each
+run's outcome. If this pipeline is ever driven by something that
+can't reliably wait for a completion signal (e.g. a cron-style
+unattended loop, as `slate` already runs — see D11), that loop's own
+design already serializes calls one at a time and would need to keep
+doing so; it should not be parallelized without adding real locking to
+`process_pack.py` first.
