@@ -19,13 +19,18 @@ Moves fully-redundant zips from src/{res}/ to src/{res}-skip/ (not
 deleted -- reversible, and extract's own src/{res}z/ raw downloads are
 never touched, so nothing about provenance is lost). A zip is only
 moved if *every* .xml entry inside it already has a matching filename
-in latest_file_list.txt.gz; any zip with even one not-yet-published
+in latest_file_list.csv.gz; any zip with even one not-yet-published
 entry is left in place for `convert` as usual.
 
-NOT YET VERIFIED against a real src/{res}/ directory -- written and
-committed from `aalto` while `slate` was unreachable (network split,
-scheduled to reconnect 2026-08-24). Run once, on a small res first,
-and read its output carefully before trusting it on a full region.
+Verified end to end across all 244 region-packs of JCI 2026-09's 1m
+refresh (DECISIONS.md D15) -- the per-mesh filename derivation here is
+resolution- and product-type-agnostic (it just swaps a zip-internal
+.xml entry's own name for .tif), so it applies unchanged to 5m/10m,
+including 5m's multiple product types sharing one resolution folder
+(DEM5A/DEM5B/DEM5C -- confirmed distinct mesh-cell keys in
+latest_file_list.csv.gz, so a DEM5B file is never mistaken for an
+obsolete DEM5A of the same cell). Still worth reading its output
+carefully the first time a new resolution tier is run through it.
 """
 import csv
 import gzip

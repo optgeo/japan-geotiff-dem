@@ -1779,17 +1779,98 @@ request:
 and the commit alone, without noticing the live bucket copy is now
 diverged, since nothing fails loudly when that step is skipped.
 
+## 2026-08-20: pre-flight check for a future "JCI 2026-09, 5m edition"
+
+Independently verified `dem1a`'s (1m) JCI 2026-09 completion (not just
+trusting the earlier self-report): every unique pack in `logs/
+aalto_pack_log.jsonl` shows `success` as its last recorded attempt,
+matching the reported per-zone counts exactly (219 success across 10
+zones; the 44 `failed` entries are all D15's dir-not-empty guard
+rejecting a premature restart, each later retried successfully — none
+are a pack that never completed). Kyushu/Okinawa isn't in that log at
+all — it predates D15's logging (finished 2026-08-13/14 via the older
+`slate`-based flow, see that date's own entry: full incremental sync
+confirmed, `dst/1` held 34,522 GeoTIFFs at the time). Cross-checked
+against `mapterhorn-japan-bridge`'s own `jpnational1` bounds check
+(built straight from this repo's live bucket listing): its footprint
+extent `(127.63, 26.07)-(142.24, 34.67)` matches Kyushu/Okinawa/
+Shikoku/western-Chugoku's real geography exactly — independent
+geometric confirmation the data is genuinely there, not just claimed.
+
+**Checked GSI's own kiban update-info page against what's actually
+published**: the 2026-07-31 announcement that triggered JCI 2026-09
+covered **both DEM1A (1m) and DEM5A (5m)** — but this cycle only ever
+re-fetched/re-processed `res=1` (every `aalto_pack_log.jsonl` record
+says `"res": "1"`). Confirmed via the live manifest: `5/latest_file_
+list.csv.gz`'s newest survey date is `20251222` — nothing from 2026 at
+all, vs. `1/`'s `20260616`. **5m is genuinely stale relative to the
+same GSI update this whole cycle was about**, not yet touched. 10m's
+last relevant GSI update was 2024-01-31 (Iwo Jima-specific); no broad
+10m update since, so 10m needs nothing right now.
+
+**Hidenori decided to run a "JCI 2026-09, 5m edition"** at a later,
+unspecified time (once other in-flight work settles) — same manual
+flow as 1m: he drops 5m region-pack zips into `aalto`'s `~/Downloads`,
+this repo's existing pipeline handles the rest. Asked to pre-verify
+the diff/skip mechanism actually works for 5m before that starts,
+given 5m's added wrinkle: three product types (DEM5A/DEM5B/DEM5C)
+share one `5/` resolution folder, unlike 1m's single DEM1A. Checked
+each res-generic script by reading its code, not just assuming
+parametrization is enough:
+
+- `Justfile`: every recipe already takes `res` as a parameter, nothing
+  hardcoded to `1`.
+- `build_filelists.py` (D13/D17's latest/obsolete split): its grouping
+  regex (`^(?P<key>.+)-(?P<date>\d{8})\.tif$`) captures everything
+  before the trailing date as the group key — for a 5m filename that
+  includes the product-type suffix (`...-DEM5A` vs. `...-DEM5B`), so a
+  `DEM5B` file is never grouped against a differently-dated `DEM5A`
+  file for the same mesh cell and marked obsolete by mistake. Verified
+  against live data: several mesh cells genuinely carry both a
+  `DEM5A` *and* a `DEM5B`/`DEM5C` file simultaneously, both correctly
+  present in the current `latest_file_list.csv.gz` (2 entries each,
+  not deduplicated to 1) — confirms this already works correctly, no
+  code change needed.
+- `skip_already_published.py` (D14): derives each expected `.tif` name
+  directly from the zip's own `.xml` entry name (`n.rsplit(...) +
+  '.tif'`) — resolution/product-type-agnostic by construction. Fixed
+  its docstring, which still said "NOT YET VERIFIED" and referenced
+  the old `.txt.gz` manifest name — stale since D14's own 2026-08-18
+  follow-up already verified it end to end across all 244 real
+  region-packs of the 1m cycle.
+- `process_pack.py` (D15's orchestrator): `res` and `zone` are both
+  plain CLI args, nothing zone-list-hardcoded; its bulk `aws s3 ls`
+  verification step lists the whole `{res}/` prefix per pack (already
+  proven to scale to 1m's ~308K objects, so 5m's ~379K should be fine,
+  just marginally slower per pack).
+- `src/5z`, `src/5`, `dst/5` are currently empty (just `.gitkeep`) —
+  clean starting state, no leftover contamination from the 1m run to
+  worry about.
+
+**No code changes were needed beyond the stale docstring** — the
+res-parametrization already done for the 1m cycle turned out to
+already handle 5m's multi-product-type wrinkle correctly, verified
+against real live data rather than just assumed. Nothing else to do
+here until Hidenori actually starts dropping 5m zips into `~/Downloads`.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` on `aalto`, clone at
-> `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 is fully complete** —
-> all 11 Zones done, file lists refreshed, and the public
+> `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 (1m) is fully
+> complete** — all 11 Zones done, file lists refreshed, and the public
 > `source-coop/README.md` is now correctly synced to the live bucket
-> (see this file's 2026-08-20 entry just above — it had drifted after
-> D17's `.csv.gz` rename, now fixed via `just docs`). There is no
-> queued Zone-processing work here.
+> (see this file's earlier 2026-08-20 entry — it had drifted after
+> D17's `.csv.gz` rename, now fixed via `just docs`).
+>
+> **A "JCI 2026-09, 5m edition" is planned** (see this file's other
+> 2026-08-20 entry, "pre-flight check") — GSI's 2026-07-31 update also
+> touched DEM5A (5m), and this repo's diff/skip pipeline has been
+> pre-verified to handle 5m's multi-product-type (DEM5A/5B/5C) wrinkle
+> correctly. Waiting on Hidenori to start dropping 5m region-pack zips
+> into `~/Downloads`, same manual flow as 1m — no further prep needed
+> until then. 10m needs nothing (no relevant GSI update since 2024).
 >
 > Check `UNopenGIS/7#978` for whether a new refresh cycle has been
 > proposed since this checkpoint (GSI publishes new surveys
