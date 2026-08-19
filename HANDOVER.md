@@ -1728,14 +1728,67 @@ real scale-test for that rewrite) was running, and Hidenori had been
 asked whether to proceed with `jpnational1`'s national expansion but
 hadn't answered yet when this was written.
 
+## 2026-08-20: `source-coop/README.md` had gone stale on the live bucket — never re-synced after D17's `.csv.gz` rename
+
+Resumed this session by checking `UNopenGIS/7#978` (no new comments
+since the "全国11Zone完了" one, still `OPEN`, nothing new to pick up)
+and `mapterhorn-japan-bridge`'s `jpnational5` polygonize (still
+running on `slate`, ~930 files/min through the footprint-extraction
+phase — see that repo's own `HANDOVER.md`). Asked Hidenori again about
+`jpnational1`'s national-scope expansion; he chose to hold off until
+`jpnational5`'s D15 scale-test finishes and is confirmed correct.
+
+Hidenori then flagged that the SC-published `README.md` might still
+reference the old file-list URLs. Checked: it did. D17 (2026-08-19)
+renamed `latest_file_list.txt.gz`/`obsolete_file_list.txt.gz` to
+`.csv.gz` and updated the local `source-coop/README.md` accordingly
+(commit `f271577`), but `just docs` was never re-run afterward — the
+live object at `https://data.source.coop/smartmaps/japan-geotiff-dem/
+README.md` still pointed readers at `.txt.gz` URLs that D17 had
+already deleted from the bucket (confirmed via `HEAD`: `.csv.gz` →
+200, `.txt.gz` → 404). Fixed by running `just docs` (README-only
+upload, verified the live copy now matches the repo's local file
+byte-for-byte).
+
+While in there, did a broader pass checking `DECISIONS.md`/`HANDOVER.md`
+against the two public-facing docs for other drift, per Hidenori's
+request:
+- `DECISIONS.md`'s own table of contents was missing rows for D11,
+  D12, D16, and D17 (the sections existed in the body, just never
+  added to the table) — fixed, purely a navigation fix, no content
+  change.
+- `CLAUDE.md`'s pipeline command reference for `just filelists` still
+  said `.txt.gz` — fixed to `.csv.gz` (D17).
+- `source-coop/README.md`'s `## Changelog` hadn't been touched since
+  the 2026-08-18 entry (Hokkaido/Shikoku/Chugoku/partial Kinki) — added
+  a 2026-08-19 entry for the full JCI 2026-09 completion (all 11
+  Zones, final counts: 1m 308,855/291,779 latest/17,076 obsolete, 5m
+  378,618 all-latest, 10m 4,981 all-latest, cross-checked by counting
+  rows in the live manifests directly) and a separate entry noting the
+  `.txt.gz`→`.csv.gz` rename itself, so a reader landing on the old
+  2026-08-18 entry doesn't get misled into fetching a dead URL.
+- Remaining `.txt.gz` mentions in `DECISIONS.md`/`HANDOVER.md` were
+  left as-is deliberately — both files are explicitly historical
+  record (D13/D14 described what was true when they were written;
+  `HANDOVER.md` is session narrative) and are not meant to be
+  retroactively edited to match the current format, unlike the two
+  live-facing docs above.
+
+**Lesson**: `just docs` needs to actually be re-run any time
+`source-coop/README.md` changes — it's easy to update the local file
+and the commit alone, without noticing the live bucket copy is now
+diverged, since nothing fails loudly when that step is skipped.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` on `aalto`, clone at
 > `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 is fully complete** —
-> all 11 Zones done, file lists refreshed (see this file's own entry
-> just above, and `UNopenGIS/7#978`'s final comment). There is no
+> all 11 Zones done, file lists refreshed, and the public
+> `source-coop/README.md` is now correctly synced to the live bucket
+> (see this file's 2026-08-20 entry just above — it had drifted after
+> D17's `.csv.gz` rename, now fixed via `just docs`). There is no
 > queued Zone-processing work here.
 >
 > Check `UNopenGIS/7#978` for whether a new refresh cycle has been
@@ -1745,8 +1798,11 @@ Paste this after `/clear` to pick up exactly here:
 > The live thread right now is actually on `slate`
 > (`mapterhorn-japan-bridge`) — this repo's completion is what
 > unblocks `jpnational1`'s national-scope expansion there. Check that
-> repo's own `HANDOVER.md` for current state (as of this checkpoint:
-> `jpnational5`'s D15 polygonize was mid-run on `slate`, and Hidenori
-> had been asked — but not yet answered — whether to proceed with
-> `jpnational1`'s own national-scope expansion, now that this repo's
-> side is done).
+> repo's own `HANDOVER.md` for current state. As of this checkpoint,
+> `jpnational5`'s D15 polygonize was still mid-run (footprint-
+> extraction phase, several hours left), and Hidenori explicitly chose
+> to **hold off** deciding on `jpnational1`'s national-scope expansion
+> until that scale-test finishes and is confirmed correct — don't
+> re-ask until then, just check whether it's done
+> (`polygon-store/jpnational5.gpkg` fresh mtime + `ogrinfo -so ...
+> union` `Feature Count: 1`).

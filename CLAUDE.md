@@ -83,7 +83,7 @@ just skip-published <res>  # src/{res}/*.zip already fully published -> src/{res
 just convert <res>         # src/{res}/*.zip   -> dst/{res}/*.tif   (docker: gmldem2tif)
 just quadrans <res>        # dst/{res}/*.tif   -> quadrans/{res}/{n,e,s,w}.tif  (LERC mosaic)
 just sync <res>            # dst/{res}         -> s3://smartmaps/japan-geotiff-dem/{res}
-just filelists <res>       # live bucket listing -> {res}/latest_file_list.txt.gz + obsolete_file_list.txt.gz (DECISIONS.md D13)
+just filelists <res>       # live bucket listing -> {res}/latest_file_list.csv.gz + obsolete_file_list.csv.gz (DECISIONS.md D13, format D17)
 just docs                  # source-coop/README.md, INCOMPLETE marker -> same bucket
 ```
 

@@ -89,12 +89,23 @@ Information Authority of Japan must be obtained.
 
 ## Changelog
 
+- 2026-08-19: **JCI 2026-09 complete** — 1m tier refreshed across all
+  11 GSI zones nationwide (Hokkaido, Tohoku, Kanto 1-3, Hokuriku, Chubu,
+  Kinki, Chugoku, Shikoku, Kyushu/Okinawa). `latest_file_list.csv.gz`/
+  `obsolete_file_list.csv.gz` regenerated for all three resolution
+  tiers: 1m 308,855 files (291,779 latest / 17,076 obsolete), 5m
+  378,618 files (all latest), 10m 4,981 files (all latest).
+- 2026-08-19: `latest_file_list.txt.gz`/`obsolete_file_list.txt.gz`
+  manifests renamed to `.csv.gz`, adding `size`/`md5` columns (see
+  "Finding the current file per grid cell" above) — the old `.txt.gz`
+  objects were removed from the bucket, so any link to a `.txt.gz`
+  manifest from before this date is stale.
 - 2026-08-18: 1m tier refreshed for Hokkaido (full, 46/46 region-packs),
   Shikoku (full, 17/17), and Chugoku (full, 23/23), plus partial Kinki
-  — 12,630 meshes total carrying newer survey dates. `latest_file_list.
-  txt.gz`/`obsolete_file_list.txt.gz` manifests added for all three
-  resolution tiers (see "Finding the current file per grid cell"
-  above).
+  — 12,630 meshes total carrying newer survey dates. `latest_file_list`/
+  `obsolete_file_list` manifests (then `.txt.gz`, since renamed
+  `.csv.gz` the next day — see above) added for all three resolution
+  tiers.
 - 2026-08-11: 1m tier refreshed for part of Kyushu/Okinawa (10 of 25
   GSI region-packs), including 1,829 meshes carrying newer 2026 aerial-
   laser survey dates (up to 2026-06-03). The remainder of Kyushu/

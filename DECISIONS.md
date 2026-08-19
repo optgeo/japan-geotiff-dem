@@ -27,9 +27,13 @@ split as the sibling `optgeo/cogenerate` repo's `DECISIONS.md` /
 | [D8](#d8-a-separate-readmemd-for-the-source-cooperative-product-itself) | A separate README.md for the Source Cooperative product itself | Accepted | 2026-08-08 |
 | [D9](#d9-syncres-must-never-pass---delete-for-incremental-per-prefecture-publishing) | `sync <res>` must never pass `--delete` for incremental per-prefecture publishing | Accepted | 2026-08-08 |
 | [D10](#d10-sync-uses---size-only-to-avoid-re-uploading-unchanged-files) | `sync` uses `--size-only` to avoid re-uploading unchanged files | Accepted | 2026-08-08 |
+| [D11](#d11-convert-moved-to-slate-via-colima-not-fixed-in-place-on-aalto) | `convert` moved to `slate` (via colima), not fixed in place on `aalto` | Superseded by D12 | 2026-08-10 |
+| [D12](#d12-aaltos-external-hdd-failed-outright-hokkaido-frozen-kyushuokinawa-only-slate-is-now-this-repos-sole-machine) | `aalto`'s external HDD failed outright; Hokkaido frozen, Kyushu/Okinawa-only, `slate` is now this repo's sole machine | Decided, Hokkaido-freeze portion superseded 2026-08-12 | 2026-08-11 |
 | [D13](#d13-latest_file_listtxtgz--obsolete_file_listtxtgz-resolve-d9s-superseded-file-ambiguity) | `latest_file_list.txt.gz` / `obsolete_file_list.txt.gz` resolve D9's superseded-file ambiguity | Accepted | 2026-08-14 |
 | [D14](#d14-skip-convert-work-for-meshes-already-published-using-latest_file_listtxtgz) | Skip `convert` work for meshes already published, using `latest_file_list.txt.gz` | Accepted, verified on synthetic data | 2026-08-14 |
 | [D15](#d15-process-directly-on-aalto-pack-by-pack-while-slate-is-unreachable) | Process directly on `aalto`, pack by pack, while `slate` is unreachable | Accepted, in active use | 2026-08-14 |
+| [D16](#d16-process_packpy-runs-must-be-strictly-serial--no-cross-invocation-locking-exists) | `process_pack.py` runs must be strictly serial — no cross-invocation locking exists | Accepted, operational rule | 2026-08-18 |
+| [D17](#d17-latest_file_listtxtgzobsolete_file_listtxtgz--csvgz-adds-sizemd5-columns) | `latest_file_list.txt.gz`/`obsolete_file_list.txt.gz` → `.csv.gz` (adds `size`,`md5` columns) | Decided and implemented | 2026-08-19 |
 
 ---
 
