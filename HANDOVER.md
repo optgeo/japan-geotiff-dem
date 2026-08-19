@@ -1612,3 +1612,81 @@ Paste this after `/clear` to pick up exactly here:
 > repo's own `HANDOVER.md` for its own resume prompt if picking that up
 > too; the two threads are related (same upstream DEM data) but
 > operate independently day to day.
+
+## 2026-08-19 (continued): further checkpoint before `/clear` — 中部 nearly done, a macOS TCC permission scare (resolved, not a data issue)
+
+Progress since the last checkpoint entry above:
+
+- **関東1 (Kanto-1): complete**, 10/10 packs, 5,864 new meshes. Posted
+  to `UNopenGIS/7#978`.
+- **中部 (Chubu)**: Z001-Z007 done. Z008 running as this entry is
+  written. 15 packs remain after Z008 (Z009-Z023) — **this is the
+  last Zone**; once Chubu finishes, all 11 Zones of JCI 2026-09 are
+  done on the `aalto` side.
+
+**Environment scare, worth knowing about but not a real blocker**:
+partway through Z008's first attempt, `~/Downloads` became completely
+inaccessible to this session (`ls`/`unzip`/`rm` all failed with
+`Operation not permitted`, even though `stat`/`ls -ld` on the
+directory itself still worked — a classic macOS TCC "protected folder"
+symptom, not a real Unix permission or data problem). Hidenori's own
+diagnosis: a Claude.app auto-update likely invalidated the app's Files-
+and-Folders/Full-Disk-Access grant even though the toggle still showed
+"on" in System Settings (known macOS quirk after a code-signature
+change) — fixed by quitting and relaunching Claude.app. **If this
+happens again**: check `ls ~/Downloads` specifically fails while
+`stat ~/Downloads` succeeds — that combination is the TCC signature,
+distinct from real file corruption. The Z008 zip that got a false
+"CRC check failed" during the outage was actually fine (`unzip -tq`
+passed cleanly once access was restored) — don't assume a `process_
+pack.py` failure during/right after an access hiccup means the
+downloaded file is bad; re-check once access is confirmed working
+again before re-downloading anything.
+
+### Next steps, in order
+
+- [ ] Finish 中部 (Z008 running now, then Z009-Z023 — 15 more packs
+      after Z008).
+- [ ] Once all 11 Zones done: `just filelists 1` (and 5/10 if
+      anything changed), final `UNopenGIS/7#978` Zone-table update.
+- [ ] Tell `slate`'s session (`mapterhorn-japan-bridge`) it's clear to
+      start `jpnational1`'s own national-scope expansion — that's the
+      one piece gated on this repo finishing (see that repo's own
+      HANDOVER.md, its D14/D15 entries).
+
+## Resume prompt
+
+Paste this after `/clear` to pick up exactly here:
+
+> Resuming `japan-geotiff-dem` (JCI 2026-09) on `aalto`, clone at
+> `/Users/hfu/japan-geotiff-dem`. Read this file's last 2 entries
+> before assuming anything.
+>
+> **Immediate next action**: check `~/Downloads` and
+> `logs/aalto_pack_log.jsonl`'s tail — as of this checkpoint, 中部
+> (Chubu, 23 packs total) had Z001-Z007 done, Z008 running. This is
+> the **last remaining Zone** (北海道・東北・中国・近畿・九州沖縄・
+> 北陸・関東1・関東2・関東3 are all already complete). Continue with
+> `python3 scripts/process_pack.py 1 chubu ~/Downloads/FG-GML-chubu-DEM1-20260616-Z0NN.zip`
+> for each remaining pack in order.
+>
+> **If `~/Downloads` access fails oddly** (`ls` errors with `Operation
+> not permitted` while `stat ~/Downloads` still works): that's a macOS
+> TCC/Full-Disk-Access glitch, not real file corruption — ask Hidenori
+> to check Claude.app's Files-and-Folders permission (toggle off/on,
+> or relaunch the app), don't assume downloaded files are bad.
+>
+> **credential TTL** (~1hr) will keep expiring mid-pack as always —
+> ask Hidenori to re-run `source-coop login`, then manually re-run
+> just the failed stage (see recent `logs/aalto_pack_log.jsonl`
+> entries with a `"note"` field for the established recovery pattern),
+> log a JSONL entry, continue. Don't restart the whole pack from
+> scratch.
+>
+> **When all 11 Zones are done**: `just filelists 1`, final Zone-table
+> update on `UNopenGIS/7#978`, then let `slate`'s session know
+> `jpnational1` can start its own national-scope expansion (its
+> `jpnational5`/`jpnational10` siblings already went national earlier
+> this same overall effort — see `mapterhorn-japan-bridge`'s own
+> HANDOVER.md D14/D15 for that whole other thread, which was running
+> in parallel this session and is substantially further along).
