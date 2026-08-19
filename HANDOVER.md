@@ -1690,3 +1690,63 @@ Paste this after `/clear` to pick up exactly here:
 > this same overall effort — see `mapterhorn-japan-bridge`'s own
 > HANDOVER.md D14/D15 for that whole other thread, which was running
 > in parallel this session and is substantially further along).
+
+## 2026-08-20: JCI 2026-09 complete — all 11 Zones done, final checkpoint before `/clear`
+
+**All 11 Zones of JCI 2026-09 are complete** as of this entry:
+北海道(46/46)・東北(34/34)・関東1(10/10)・関東2(8/8)・関東3(18/18)・
+北陸(16/16)・中部(23/23)・近畿(24/24)・中国(23/23)・四国(17/17)・
+九州沖縄(25/25). Posted to `UNopenGIS/7#978` with the full table
+(comment: search for "全国11Zone完了しました").
+
+`latest_file_list.csv.gz`/`obsolete_file_list.csv.gz` (D17 CSV format)
+refreshed for all three resolution tiers as the final step:
+- 1m: 308,855 total (291,779 latest / 17,076 obsolete)
+- 5m: 378,618 total (all latest)
+- 10m: 4,981 total (all latest)
+
+**There is no more pending work in this repo for JCI 2026-09** — the
+`aalto`-side pipeline (extract → skip-published → convert → sync →
+verify, D14/D15's aalto-direct pack processing) has nothing queued.
+Any future session opening this repo should check `UNopenGIS/7#978`
+for whether a *new* refresh cycle has been proposed (GSI publishes new
+surveys continuously, so this is likely to recur, just not immediately
+actionable) before assuming there's a Zone to resume.
+
+**What's still in flight, elsewhere**: this repo's own data
+(`smartmaps/japan-geotiff-dem`) feeds `mapterhorn-japan-bridge`'s
+pipeline on `slate` — that repo's own `jpnational1` source-catalog
+entry is still scoped to a mesh-code range (Kyushu/Okinawa + Shikoku +
+western Chugoku), deliberately gated on *this* repo finishing national
+publishing. That gate is now open — completing this repo's own 11
+Zones is what unblocks `jpnational1`'s eventual national-scope
+expansion there (its `jpnational5`/`jpnational10` siblings already
+went national earlier). See `mapterhorn-japan-bridge`'s own
+`HANDOVER.md` for that thread's current state; as of this same
+checkpoint, `jpnational5`'s own D15 polygonize (378,618 tiles, the
+real scale-test for that rewrite) was running, and Hidenori had been
+asked whether to proceed with `jpnational1`'s national expansion but
+hadn't answered yet when this was written.
+
+## Resume prompt
+
+Paste this after `/clear` to pick up exactly here:
+
+> Resuming `japan-geotiff-dem` on `aalto`, clone at
+> `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 is fully complete** —
+> all 11 Zones done, file lists refreshed (see this file's own entry
+> just above, and `UNopenGIS/7#978`'s final comment). There is no
+> queued Zone-processing work here.
+>
+> Check `UNopenGIS/7#978` for whether a new refresh cycle has been
+> proposed since this checkpoint (GSI publishes new surveys
+> continuously) before assuming there's nothing to do.
+>
+> The live thread right now is actually on `slate`
+> (`mapterhorn-japan-bridge`) — this repo's completion is what
+> unblocks `jpnational1`'s national-scope expansion there. Check that
+> repo's own `HANDOVER.md` for current state (as of this checkpoint:
+> `jpnational5`'s D15 polygonize was mid-run on `slate`, and Hidenori
+> had been asked — but not yet answered — whether to proceed with
+> `jpnational1`'s own national-scope expansion, now that this repo's
+> side is done).
