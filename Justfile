@@ -63,15 +63,17 @@ sync-mirror res:
 quadrans res:
   ruby scripts/quadrans_script.rb {{res}}
 
-# generate latest_file_list.txt.gz / obsolete_file_list.txt.gz for {res}
+# generate latest_file_list.csv.gz / obsolete_file_list.csv.gz for {res}
 # and upload them into the same resolution prefix (DECISIONS.md D13).
+# CSV columns: url,size,md5 -- lets downstream consumers skip
+# already-correct local files without a network round-trip.
 # Run this after `sync res` has published everything you want reflected --
 # it reads the live bucket listing, not local dst/{res}.
 filelists res:
   python3 scripts/build_filelists.py {{res}}
 
 # move any src/{res}/*.zip whose entire content is already published
-# (per the current latest_file_list.txt.gz) aside to src/{res}-skip/,
+# (per the current latest_file_list.csv.gz) aside to src/{res}-skip/,
 # so `convert` doesn't waste Docker/GDAL time reproducing identical
 # output (DECISIONS.md D14). Run before `convert res`, not chained
 # into it automatically -- read its output before trusting it on a

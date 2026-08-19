@@ -40,29 +40,34 @@ one file in this bucket, at different survey dates (see the filename's
 trailing `YYYYMMDD`). To avoid guessing which one is current, each
 resolution prefix carries two manifests:
 
-- `{res}/latest_file_list.txt.gz` — one URL per line, the current file
-  for every grid cell in that resolution tier.
-- `{res}/obsolete_file_list.txt.gz` — one URL per line, every
+- `{res}/latest_file_list.csv.gz` — one row per grid cell, the current
+  file for every cell in that resolution tier.
+- `{res}/obsolete_file_list.csv.gz` — one row per file, every
   superseded file (still published, just no longer current).
 
-Both are plain gzipped text, one full `https://data.source.coop/...`
-URL per line — no CSV, no extra fields. Regenerated whenever new data
-lands; safe to re-fetch any time you want the current split.
+Both are gzipped CSV with header `url,size,md5` — `size` in bytes,
+`md5` as a lowercase hex digest (each object's own S3 ETag, which is a
+true MD5 for these files). This lets a downstream client check whether
+it already has the current file for a cell without any network request
+beyond fetching this one manifest — compare local file size (and hash,
+if you want to be sure) against the row, no per-file HEAD/GET needed.
+Regenerated whenever new data lands; safe to re-fetch any time you want
+the current split.
 
 Direct URLs (Source Cooperative's own browse UI makes these tedious to
 find by clicking through, so they're spelled out here):
 
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/latest_file_list.txt.gz>
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/obsolete_file_list.txt.gz>
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/latest_file_list.txt.gz>
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/obsolete_file_list.txt.gz>
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.txt.gz>
-- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/obsolete_file_list.txt.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/latest_file_list.csv.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/10/obsolete_file_list.csv.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/latest_file_list.csv.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/5/obsolete_file_list.csv.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.csv.gz>
+- <https://data.source.coop/smartmaps/japan-geotiff-dem/1/obsolete_file_list.csv.gz>
 
 SYNOPSIS (decompress and read line-by-line without saving to disk):
 
 ```sh
-curl -sL https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.txt.gz | gzcat
+curl -sL https://data.source.coop/smartmaps/japan-geotiff-dem/1/latest_file_list.csv.gz | gzcat
 ```
 
 ## Data source, license, and attribution

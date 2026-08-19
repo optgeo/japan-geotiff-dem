@@ -6,7 +6,7 @@ reproducing identical output. See DECISIONS.md D14.
 
 Usage: python3 scripts/skip_already_published.py <res>
 
-Fetches {res}/latest_file_list.txt.gz fresh each run via the
+Fetches {res}/latest_file_list.csv.gz fresh each run via the
 authenticated source-coop profile, for consistency with every other
 command in this repo's Justfile -- data.source.coop is actually
 plainly readable by any normal HTTP client (a default Python urllib
@@ -27,6 +27,7 @@ committed from `aalto` while `slate` was unreachable (network split,
 scheduled to reconnect 2026-08-24). Run once, on a small res first,
 and read its output carefully before trusting it on a full region.
 """
+import csv
 import gzip
 import subprocess
 import sys
@@ -38,14 +39,15 @@ BUCKET = 's3://smartmaps/japan-geotiff-dem'
 
 
 def fetch_latest_names(res):
-    with tempfile.NamedTemporaryFile(suffix='.txt.gz') as tmp:
+    with tempfile.NamedTemporaryFile(suffix='.csv.gz') as tmp:
         subprocess.run(
-            ['aws', 's3', 'cp', f'{BUCKET}/{res}/latest_file_list.txt.gz',
+            ['aws', 's3', 'cp', f'{BUCKET}/{res}/latest_file_list.csv.gz',
              tmp.name, '--profile', 'source-coop'],
             check=True,
         )
-        with gzip.open(tmp.name, 'rt') as f:
-            urls = f.read().splitlines()
+        with gzip.open(tmp.name, 'rt', newline='') as f:
+            reader = csv.DictReader(f)
+            urls = [row['url'] for row in reader]
     return set(url.rsplit('/', 1)[-1] for url in urls)
 
 
@@ -55,7 +57,7 @@ def main():
         sys.exit(1)
     res = sys.argv[1]
 
-    print(f'Fetching latest_file_list.txt.gz for {res} (authenticated)...')
+    print(f'Fetching latest_file_list.csv.gz for {res} (authenticated)...')
     latest_names = fetch_latest_names(res)
     print(f'{len(latest_names)} currently-published filenames.')
 
