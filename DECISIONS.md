@@ -742,3 +742,47 @@ unattended loop, as `slate` already runs — see D11), that loop's own
 design already serializes calls one at a time and would need to keep
 doing so; it should not be parallelized without adding real locking to
 `process_pack.py` first.
+
+## D17: `latest_file_list.txt.gz`/`obsolete_file_list.txt.gz` → `.csv.gz` (adds `size`,`md5` columns)
+
+**Status**: Decided and implemented 2026-08-19, in effect immediately.
+
+**Context**: The downstream consumer of these manifests
+(`mapterhorn-japan-bridge`'s `source_download.py`, see that repo's own
+D14) needed a way to tell "already have the correct file locally"
+apart from "need to fetch this" **without a network round-trip per
+file** — its old per-URL `wget --continue` loop spent most of its wall
+time re-verifying already-complete files one subprocess/connection at
+a time (mesh count in the tens to hundreds of thousands makes that
+add up to hours). A size+checksum manifest lets a local stat/hash
+check answer that question entirely offline.
+
+**Decision**: `build_filelists.py` now queries `aws s3api
+list-objects-v2` instead of `aws s3 ls` — the same paginated bucket
+listing call also returns each object's `Size` and `ETag` for free, no
+extra requests. Verified directly (fetched one real published object,
+compared its S3 `ETag` header against a locally-computed MD5 of the
+downloaded bytes) that `ETag` equals the true MD5 for these files
+(single-part uploads, no multipart-style `-N` suffix on any ETag
+checked). Output format changed from one-URL-per-line
+`latest_file_list.txt.gz`/`obsolete_file_list.txt.gz` to
+`url,size,md5` CSV, same filenames with `.csv.gz` instead of `.txt.gz`.
+`skip_already_published.py` updated to parse the new format (only
+needs the `url` column, ignores size/md5). `source-coop/README.md`
+updated to document the new columns and the "why" (skip without a
+network request). Old `.txt.gz` objects removed from the bucket on
+each republish so the two formats don't linger side by side.
+
+Regenerated for all three tiers same day: 1m (305,019 files: 289,987
+latest / 15,032 obsolete), 5m (378,618 files, all latest), 10m (4,981
+files, all latest).
+
+**Consequences**:
+- Any other downstream consumer of these manifests (if one exists or
+  gets added later) needs to switch from reading plain URL lines to
+  parsing CSV with a header row.
+- `.gz` added to `.gitignore` (previously only `*.txt` was listed,
+  which never matched `*.txt.gz` anyway — the generated manifest files
+  had been landing as untracked stray files at the repo root on every
+  local `build_filelists.py` run; not a new problem, just made
+  explicit now).

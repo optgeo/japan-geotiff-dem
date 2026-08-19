@@ -1524,3 +1524,91 @@ Paste this after `/clear` to pick up exactly here:
 > default (Tohoku got a "wait for full completion" instruction
 > specifically — ask if unsure whether that was a one-off or a new
 > standing preference).
+
+## 2026-08-19 (continued): session checkpoint before an expected `/clear`
+
+Zone progress since the last checkpoint entry above (which is now
+stale — Hokuriku, 関東3, 関東2 all finished since):
+
+- **Hokkaido, 東北, 中国, 近畿, 九州沖縄, 北陸, 関東3, 関東2: all
+  complete.** (関東3 was briefly mis-reported "8/8" on `UNopenGIS/7#978`
+  — it's actually 18 packs; corrected with a follow-up issue comment
+  once Hidenori caught leftover `Z009`-`Z018` zips still in
+  `~/Downloads` — see that repo's own comment thread for the numbers.)
+- **関東1 (Kanto-1)**: in progress. Z001-Z004 done, Z005 running as
+  this entry is written. 10 packs total, all already downloaded to
+  `~/Downloads`.
+- **中部 (Chubu)**: 23 packs total, Z001-Z006 done (see
+  `logs/aalto_pack_log.jsonl`), Z007+ not yet processed — was
+  deliberately paused mid-Zone-006 to let 関東1 go first (Hidenori's
+  own call, avoiding download/processing collisions), not yet resumed.
+- **D17 (new)**: `build_filelists.py` now emits `latest_file_list.csv.gz`/
+  `obsolete_file_list.csv.gz` (columns `url,size,md5`) instead of plain
+  `.txt.gz` URL lists — `size`+`md5` come free from `aws s3api
+  list-objects-v2`'s ETag (verified = true MD5 for these files). This
+  exists to let `mapterhorn-japan-bridge`'s downloader skip
+  already-correct local files without a network request; see that
+  repo's own D14/D15 for the full downstream story (a much bigger
+  rewrite happened there this session: CSV manifests + `aria2c` for
+  downloads, and a batched `gdal vector concat` rewrite of
+  `source_polygonize.py` — ~16x measured speedup, verified end-to-end).
+  Regenerated all three tiers same day (1m 305,019 / 5m 378,618 /
+  10m 4,981 files).
+- Credential TTL (~1hr) kept expiring mid-pack throughout this session,
+  same as always — recovery pattern each time: re-run `source-coop
+  login`, then manually re-run whichever stage failed (`just sync 1`
+  for a sync failure, or just the S3-listing+compare for a verify-only
+  failure), log a manual JSONL entry noting the TTL interruption, clean
+  up, continue. Nothing new here, just confirming the pattern held.
+
+### Next steps, in order
+
+- [ ] Finish 関東1 (Z005 running now, then Z006-Z010).
+- [ ] Resume 中部 from Z007 (17 packs remaining of 23).
+- [ ] Once all Zones done: `just filelists 1` (and 5/10 if anything
+      changed there) for a final manifest refresh, then a final
+      `UNopenGIS/7#978` Zone-table update marking JCI 2026-09's aalto
+      side complete.
+- [ ] `jpnational1`'s (on `slate`) own national-scope expansion is
+      gated on this repo finishing — once all 11 Zones are done here,
+      that's the trigger to tell `slate` it's clear to proceed (see
+      `mapterhorn-japan-bridge`'s own HANDOVER.md for exactly what that
+      involves).
+
+## Resume prompt
+
+Paste this after `/clear` to pick up exactly here:
+
+> Resuming `japan-geotiff-dem` (JCI 2026-09) work on `aalto`, clone at
+> `/Users/hfu/japan-geotiff-dem` (not `/Volumes/github/...` — that
+> path is stale, see this file's own note from earlier if confused
+> about where the working clone lives). Read this file's last entry
+> and `DECISIONS.md` D17 before assuming anything about current state.
+>
+> **Immediate next action**: check `~/Downloads` and
+> `logs/aalto_pack_log.jsonl`'s tail to see exactly which 関東1
+> (Kanto-1, 10 packs total) pack is next — as of this checkpoint Z005
+> was running, Z001-Z004 done. Continue with
+> `python3 scripts/process_pack.py 1 kanto1 ~/Downloads/FG-GML-kanto1-DEM1-20260616-Z00N.zip`
+> for each remaining pack in order. If a `sync`/`verify` step fails
+> with a credentials-expired error, ask Hidenori to run `source-coop
+> login` again (hourly TTL, expected), then manually re-run the failed
+> stage and log a JSONL entry noting the interruption before continuing
+> — don't just retry blindly, this repo's own pattern for that is
+> documented in recent `logs/aalto_pack_log.jsonl` entries and this
+> file's own recent history.
+>
+> **After 関東1**: resume 中部 (Chubu) from **Z007** (Z001-Z006 already
+> done, 17 of 23 packs remain) — this was deliberately paused
+> mid-Zone to let 関東1 finish first, not because anything went wrong.
+>
+> **When all 11 Zones are done**: run `just filelists 1` for a final
+> manifest refresh, post a final Zone-table completion update to
+> `UNopenGIS/7#978`, and let `slate`'s session know — `jpnational1`'s
+> national-scope expansion there is waiting on this.
+>
+> A large, separate body of work happened on `slate` this same session
+> (`mapterhorn-japan-bridge`'s `japan.pmtiles` pipeline) — see that
+> repo's own `HANDOVER.md` for its own resume prompt if picking that up
+> too; the two threads are related (same upstream DEM data) but
+> operate independently day to day.
