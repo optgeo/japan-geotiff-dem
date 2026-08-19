@@ -1335,58 +1335,192 @@ judgment (or ask) when picking this back up.
 - [ ] Keep `unopengis/7#978` current as Zones complete — Oliver is
       actively reading it.
 
+## 2026-08-19 (continued, post-`/clear`): Tohoku finished, Hokuriku started; a parallel `slate` research thread (SSH restored, trial confirmed, `japan.pmtiles` rebuilt)
+
+Picked up exactly at the prior entry's resume prompt: Kinki was
+complete, Tohoku's download hadn't caught up, session was paused
+deliberately. This entry covers a long continued session that
+resumed Tohoku, finished it, started Hokuriku, and — in parallel, on
+`slate` rather than `aalto` — did substantial unplanned investigation
+work on the sibling `hfu/mapterhorn` / `mapterhorn-japan-bridge`
+effort. That side has its own full narrative in
+`mapterhorn-japan-bridge`'s own `HANDOVER.md` (three detailed entries
+from this same session) — this entry only summarizes it for
+cross-reference, since it happened concurrently with this repo's own
+pipeline work and used some of the same background-task-monitoring
+rhythm.
+
+**Tohoku finished: 34/34, 18,426 new meshes** — the highest hit rate
+of any zone this session (31 of 34 packs carried new content, vs.
+much lower ratios for Hokkaido/Shikoku/Chugoku/Kinki), reflecting
+active ongoing GSI survey work in this region. Incidents: the usual
+hourly credential-expiry pattern (`Z001`/`Z020`/`Z028`, recovered
+manually as always) plus one **new failure class** — `Z031` hit a
+transient HTTP 520 from Cloudflare on a single `PutObject` call during
+`sync`, which is *not* a credential problem and doesn't need
+`source-coop login` — a plain retry of `just sync 1` resolved it
+immediately. Worth remembering as a distinct pattern from the
+credential-expiry one: check the actual error text before assuming
+every `sync` failure needs a re-login.
+
+Posted the consolidated Tohoku-complete report to `unopengis/7#978`
+per Hidenori's explicit instruction ("東北全数が終わった時点でissueに
+報告するように") — this zone got one comment at full completion
+rather than the earlier per-Zone-completion cadence, since he
+specifically flagged how much new data this one had.
+
+**Hokuriku started**: order confirmed as 北陸→関東3→関東2→関東1→中部
+(the five zones remaining after everything else this session
+finished). 16 packs total, all downloaded before processing began.
+4/16 done as of this entry (1,742 new meshes so far), `Z005` in
+progress — check `~/Downloads` and `logs/aalto_pack_log.jsonl` on
+resume rather than trusting this count if time has passed.
+
+**Session running total**: 148 packs processed across six zones
+(Hokkaido/Shikoku/Chugoku/Kinki/Tohoku complete, Hokuriku in
+progress), **33,744 new meshes** converted/uploaded/verified via D15
+this session alone.
+
+### The parallel `slate` thread (full detail in `mapterhorn-japan-bridge`'s own HANDOVER.md)
+
+Hidenori set up an SSH jump-host route from `aalto` to `slate` this
+session (topology deliberately not detailed in this public repo,
+same reasoning as `mapterhorn-japan-bridge`'s own redaction — ask
+Hidenori or check `aalto`'s `~/.ssh/config`), restoring the ability to
+inspect and drive `slate` directly for the first time since it went
+unreachable 2026-08-14. This led to a long side-thread of real
+findings, all recorded in detail in `mapterhorn-japan-bridge`'s own
+`HANDOVER.md` (search for the 2026-08-19 entries):
+
+- **The 2026-08-14 aggregation/downsampling/bundle trial was confirmed
+  to have actually completed successfully** (1,119/1,119 aggregation,
+  2,697/2,697 downsampling, `bundle.py 1` done) — it only *looked*
+  stuck because `check_progress.py` has a real glob-pattern bug that
+  always reports 0% regardless of true state.
+- **`polygon-store` fast-storage relocation was investigated and its
+  premise disproven**: a real `ogr2ogr -update -append` benchmark
+  (matching the actual production command) showed only a ~10%
+  difference between `slate`'s internal SSD and external USB SSD —
+  storage speed is not the bottleneck for that workload, subprocess-
+  spawn overhead is. Also found and fixed a real regression: GDAL
+  3.13.3 (auto-upgraded via Homebrew, released 2026-08-13) rejects a
+  duplicate `-append` flag that `source_polygonize.py` had always
+  passed — fixed in `hfu/mapterhorn`.
+- **`jpkyushutest1`'s `file_list.txt` regenerated** against
+  `japan-geotiff-dem`'s current published state: 71,577 → 75,724
+  positions. Confirmed (by direct JIS-mesh-code computation) that this
+  source-catalog entry's mesh-code-range filter (3900-5199) has always
+  covered not just Kyushu/Okinawa but all of Shikoku and western
+  Chugoku too — confirmed **intentional** by Hidenori ("日本を一つの
+  広域ソースとして扱い" — treating Japan as one broad-area source on
+  purpose), not a bug. A download+bounds+polygonize pipeline for this
+  expanded coverage was kicked off and is still running as of this
+  entry (see `mapterhorn-japan-bridge`'s HANDOVER for live status).
+- **`japan.pmtiles` was rebuilt successfully** after three earlier
+  attempts crashed with ENOSPC. Root cause: the `pmtiles` Python
+  library's `Writer` streams tile data into `tempfile.TemporaryFile()`
+  before `finalize()`, and `tempfile` defaults to the small internal
+  volume rather than wherever the script's own output lives — not a
+  memory/swap problem as first suspected. Fix: `TMPDIR` pointed at the
+  external volume, no code changes. Result: 789,984 tiles, ~70.7GB,
+  verified non-corrupt (header's declared `tile_data_length` exactly
+  matches the file's actual size). **Local only — not yet published**;
+  Hidenori wants to verify it and upload to Source Cooperative next,
+  after `/clear`.
+- Also: killed 3 harmless but long-orphaned `colima start` zombie
+  processes from 2026-08-10; reclaimed ~31GB on `slate`'s tight
+  internal SSD (228GB total, was 55GB free, now 85GB) by deleting an
+  abandoned Docker Desktop install's leftover container data plus
+  assorted safe app/dev-tool caches; confirmed FileVault is enabled on
+  `slate` (so a reboot without physical/GUI access would strand it —
+  the pending macOS update stays deferred until physical access is
+  available, expected around 2026-08-23 night).
+
+None of this touched `japan-geotiff-dem`'s own pipeline or data —
+purely parallel work on the sibling repos, using the same
+background-task-monitoring rhythm as this repo's own Zone processing.
+
+### Next steps
+
+- [ ] Finish Hokuriku (`Z005`-`Z016` as of this entry).
+- [ ] Then 関東3 (Kanto-3, Yamanashi/Nagano) → 関東2 → 関東1 → 中部, per
+      the confirmed order.
+- [ ] Rebuild `latest`/`obsolete` file lists at the next natural pause
+      — still Hidenori's standing preference.
+- [ ] Keep re-running `source-coop login` on credential-expiry errors
+      (hourly TTL) — but check the actual error text first: a
+      transient HTTP 520 (like `Z031`) needs a plain retry, not a
+      re-login, and re-logging in for that class of error wastes a
+      step without fixing anything.
+- [ ] **Never start a new `process_pack.py` run before the previous
+      one's completion notification has arrived** (D16) — unchanged.
+- [ ] Do **not** relay any Zone `aalto` has already fully processed to
+      `slate`'s `src/1z/` once it reconnects — that's now Hokkaido,
+      Shikoku, Chugoku, Kinki, and Tohoku.
+- [ ] Keep `unopengis/7#978` current — post per-Zone as before, except
+      follow whatever cadence Hidenori specifies per zone (Tohoku got
+      a "wait for full completion" instruction; default back to
+      per-completion posting unless told otherwise).
+- [ ] On the `slate`/`mapterhorn` side (tracked in that repo's own
+      HANDOVER.md, not here): verify the freshly-rebuilt
+      `japan.pmtiles` and upload it to Source Cooperative — explicitly
+      queued as this session's next action after `/clear`.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` / JCI 2026-09. Read, in order: this
-> file's 2026-08-18 entries (three total — original kickoff, same-day
-> follow-up, and the "continued" entry covering Hokkaido/Shikoku/
-> Chugoku finishing, Kinki/Tohoku starting, the D16 concurrency
-> incident, and the README/doc updates), `DECISIONS.md` D13-D16 for
-> the full ADRs, and `unopengis/7#978` for the JCI issue itself (Zone
-> list, progress comments — Oliver Wipfli's own reply came via
-> LinkedIn, not posted to the issue). Note `CLAUDE.md` normally
-> describes this repo as running on `slate` — that's still true
-> long-term, but **`slate` is unreachable until 2026-08-24**, so this
-> whole effort has been running from `aalto` instead (a working clone
-> at whatever path you're reading this from, not
-> `/Volumes/Migrate-2025-04/...`).
+> file's 2026-08-19 "continued" entry (Tohoku finishing, Hokuriku
+> starting, and the parallel `slate`/`mapterhorn` research thread
+> summary), `DECISIONS.md` D13-D16 for the full ADRs, and
+> `unopengis/7#978` for the JCI issue itself (Zone list, progress
+> comments). Note `CLAUDE.md` normally describes this repo as running
+> on `slate` — that's still true long-term, but this whole effort has
+> been running from `aalto` instead this cycle (a working clone at
+> whatever path you're reading this from, not
+> `/Volumes/Migrate-2025-04/...`) — `slate` itself is now reachable
+> again via an SSH jump-host route Hidenori set up mid-session
+> (details in `aalto`'s own `~/.ssh/config`, deliberately not written
+> here since this is a public repo), and has its own substantial
+> parallel work in progress — see below.
 >
-> **First thing on resume**: this session ended **paused deliberately
-> on Hidenori's own instruction**, not because work ran out — Kinki
-> finished (24/24), file lists were rebuilt, then he said to stop
-> because Tohoku's download hadn't caught up yet. So: **do not start
-> processing Tohoku packs automatically on resume** — check with
-> Hidenori first, or check `~/Downloads` yourself and use judgment on
-> whether enough has landed to be worth resuming. Once actually
-> resuming: check `logs/aalto_pack_log.jsonl`'s tail and `~/Downloads`
-> on `aalto` to see exactly what's there — don't assume the Next-steps
-> list above is still current if real time has passed. If a `sync`,
-> `verify`, or `skip-published` step fails with a credentials error,
-> that's normal (hourly TTL) — re-run `source-coop login` and
-> continue; don't treat an auth failure as data loss without checking
-> first (the `Z027`/`Z037`/`Z042`/`Z010`/`Z023` pattern, all recovered
-> cleanly).
+> **First thing on resume, `japan-geotiff-dem` side**: check
+> `logs/aalto_pack_log.jsonl`'s tail and `~/Downloads` on `aalto` to
+> see exactly what's there — Hokuriku was ~4/16 done (`Z005` in
+> progress) as of this entry, don't trust that number if real time has
+> passed. If a `sync`, `verify`, or `skip-published` step fails with a
+> credentials-expired error, that's normal (hourly TTL) — re-run
+> `source-coop login` and continue. **But check the actual error text
+> first**: `Z031` this session hit a transient HTTP 520 from
+> Cloudflare, a different failure class that just needs a plain retry,
+> not a re-login — don't assume every `sync` failure is credential
+> expiry.
 >
-> **Standing rule (D15)**: any Zone `aalto` finishes processing (all
-> packs through `process_pack.py`, deleted locally, uploaded+verified
-> on S3) must **not** be relayed to `slate`'s `src/1z/` once it
-> reconnects — it's already done. As of this entry that's Hokkaido,
-> Shikoku, Chugoku, and Kinki. Cross-check before restarting `slate`'s
-> own `extract`/`convert`/`sync` loop.
+> **First thing on resume, `slate` side (separate, higher priority
+> per Hidenori)**: verify the freshly-rebuilt `bundle-store/
+> japan.pmtiles` (789,984 tiles, ~70.7GB, built this session after
+> fixing a `tempfile`-directory bug — see `mapterhorn-japan-bridge`'s
+> own HANDOVER.md for the full story) and **upload it to Source
+> Cooperative** — this was the explicit next action queued before this
+> `/clear`. Check `mapterhorn-japan-bridge`'s own HANDOVER.md first for
+> exactly how far the `jpkyushutest1` download+bounds+polygonize
+> pipeline (also still running as of this entry) has gotten, and for
+> the standing rule about not publishing without Hidenori's own
+> go-ahead on the actual upload step.
+>
+> **Standing rule (D15)**: any Zone `aalto` finishes processing must
+> **not** be relayed to `slate`'s `src/1z/` once reconnected — as of
+> this entry that's Hokkaido, Shikoku, Chugoku, Kinki, and Tohoku.
 >
 > **Standing rule (D16)**: never start a new `process_pack.py`
 > invocation for a given `res` until the previous invocation's
-> completion has actually been confirmed — no exceptions, no
-> "probably done by now." This is exactly how the `Z003`/`Z004`
-> Shikoku concurrency incident happened (caught before any upload,
-> no harm done, but don't repeat it).
+> completion has actually been confirmed — no exceptions.
 >
-> **Order of remaining work once resumed**: Tohoku (`Z001`-`Z034`
-> sequential, download in progress — 8/34 landed as of this entry) →
-> whatever Zone Hidenori downloads next. Rebuild `latest`/`obsolete`
-> file lists (`just filelists 1`) periodically at natural pauses, not
-> just once at the very end — Hidenori's own preference, safe to run
-> concurrently with pack processing. Update `unopengis/7#978` as Zones
-> complete.
+> **Order of remaining work on `aalto`**: finish Hokuriku (`Z005`
+> onward) → 関東3 (Kanto-3) → 関東2 → 関東1 → 中部, per Hidenori's
+> confirmed order. Rebuild `latest`/`obsolete` file lists periodically
+> at natural pauses. Update `unopengis/7#978` per Zone completion by
+> default (Tohoku got a "wait for full completion" instruction
+> specifically — ask if unsure whether that was a one-off or a new
+> standing preference).
