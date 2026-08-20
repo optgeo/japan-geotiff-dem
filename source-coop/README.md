@@ -89,6 +89,12 @@ Information Authority of Japan must be obtained.
 
 ## Changelog
 
+- 2026-08-21: **JCI 2026-09 complete for 5m too** — 5m tier (DEM5A/5B/5C)
+  refreshed across all 11 GSI zones nationwide, same scope as the 1m
+  refresh below. `latest_file_list.csv.gz`/`obsolete_file_list.csv.gz`
+  regenerated: 5m now 471,062 files (422,119 latest / 48,943 obsolete),
+  up from 378,618 (all latest) before this cycle. 10m unchanged (no
+  relevant GSI update since 2024).
 - 2026-08-19: **JCI 2026-09 complete** — 1m tier refreshed across all
   11 GSI zones nationwide (Hokkaido, Tohoku, Kanto 1-3, Hokuriku, Chubu,
   Kinki, Chugoku, Shikoku, Kyushu/Okinawa). `latest_file_list.csv.gz`/

@@ -1853,37 +1853,102 @@ already handle 5m's multi-product-type wrinkle correctly, verified
 against real live data rather than just assumed. Nothing else to do
 here until Hidenori actually starts dropping 5m zips into `~/Downloads`.
 
+## 2026-08-20/21: JCI 2026-09, 5m edition — all 11 Zones complete, executed via `process_pack.py` end to end
+
+**Complete.** Every zone processed via the same `process_pack.py 5
+<zone> <pack.zip>` orchestrator already proven for 1m (D15) — no code
+changes needed beyond D19's `skip_already_published.py` docstring fix
+noted in the prior entry. Ran as a sequence of small unattended batch
+scripts (`/tmp/batch_5m_*.sh` on `aalto`, one `process_pack.py` call
+per pack, `set -e` so a failure stops the batch rather than silently
+skipping), restarted after each recovered failure.
+
+**Final numbers** (`just filelists 5`, confirmed against a fresh bucket
+listing): 471,062 total files — 422,119 latest / 48,943 obsolete.
+Against the pre-cycle baseline (378,618 latest / 0 obsolete): of the
+~92,444 files this cycle touched, **43,501 (~47%) were genuinely new
+coverage**, **48,943 (~53%) were resurveys of previously-published
+cells**. Zone-by-zone pack counts (all succeeded): Hokkaido 3,
+Tohoku 3, Kanto1 1, Kanto2 1, Kanto3 1, Hokuriku 2, Chubu 2, Kinki 2,
+Chugoku 2, Shikoku 1, Kyushu/Okinawa 2 — 20 packs total, ~21GB
+downloaded.
+
+**Recurring failure pattern, all recovered, none lost data**: `sync`
+hit `HTTP 520` (Cloudflare/Source-Cooperative-side transient error) on
+1-2 files per pack roughly half the time, and separately hit
+`source-coop` credential expiry (~1hr TTL, same as always) a few times
+across the ~2-day span this ran over. Recovery was always the same,
+manual sequence — confirmed safe because `process_pack.py` never
+deletes local data on failure (`deleted_local: false`): retry `just
+sync 5` (idempotent, only the stragglers re-upload), fetch a fresh
+`aws s3 ls` bucket listing, verify every local file's size against it,
+only then clean up (`find ... -delete` on `src/5z`/`src/5`/
+`src/5-skip`/`dst/5`, delete the source zip), log a corrected entry to
+`logs/aalto_pack_log.jsonl` noting the recovery, commit. Every single
+recovery succeeded with zero mismatches — this failure mode is
+well-understood and mechanically recoverable, not a data-integrity
+risk, just an operational speed bump worth expecting on any future
+multi-pack batch.
+
+**Verified nationwide completeness independently**, not just trusted
+Hidenori's own pack-download tracking: inventoried all 20 downloaded
+zips against the known 11-zone structure (matches 1m's own JCI zone
+list exactly, no zone missing), confirmed every zone's final pack was
+meaningfully smaller than GSI's apparent ~2.1-2.2GB per-pack cap (the
+"remainder pack" signature — strong evidence nothing was silently
+truncated), and CRC-verified all 20 zips clean before processing any
+of them.
+
+**Posted to `UNopenGIS/7#978`** (5m completion, zone table, final
+counts) and to `mapterhorn/mapterhorn#142` (1m+5m combined report,
+`@wipfli`, including the new `.csv.gz` manifest format and the
+multi-product-type note) — both live. See `mapterhorn-japan-bridge`'s
+own `HANDOVER.md` for the downstream continuation (this refresh is
+what `jpnational5`'s D15 polygonize scale-test consumed, and what the
+D18-D21 aggregation-pipeline bug fixes were found while building on
+top of).
+
+**Not yet done**: `jpnational5`/`jpnational10`/`jpnationalsea` on
+`slate` were downloaded/polygonized *before* this 5m refresh completed
+— meaning their own local snapshots are now somewhat behind this
+bucket's current state (same class of drift D19's `source_prune_
+obsolete.py` was built to handle for `jpnational1`, potentially at
+much larger scale here given ~92k files changed nationally this
+cycle). Whether/when to refresh those against the now-current 5m
+bucket is `mapterhorn-japan-bridge`'s own call, not tracked further
+here.
+
 ## Resume prompt
 
 Paste this after `/clear` to pick up exactly here:
 
 > Resuming `japan-geotiff-dem` on `aalto`, clone at
-> `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 (1m) is fully
-> complete** — all 11 Zones done, file lists refreshed, and the public
-> `source-coop/README.md` is now correctly synced to the live bucket
-> (see this file's earlier 2026-08-20 entry — it had drifted after
-> D17's `.csv.gz` rename, now fixed via `just docs`).
+> `/Users/hfu/japan-geotiff-dem`. **JCI 2026-09 is fully complete for
+> both 1m and 5m** — all 11 Zones each, file lists refreshed and
+> verified, `source-coop/README.md` synced. 10m needs nothing (no
+> relevant GSI update since 2024). Final 5m counts: 471,062 total
+> (422,119 latest / 48,943 obsolete). See this file's 2026-08-20/21
+> entries for the full story, including a recurring-but-fully-
+> recoverable `HTTP 520`/credential-expiry failure pattern worth
+> expecting on any future multi-pack batch (retry `just sync {res}`,
+> re-verify against a fresh bucket listing, then clean up — never
+> delete on a bare failure).
 >
-> **A "JCI 2026-09, 5m edition" is planned** (see this file's other
-> 2026-08-20 entry, "pre-flight check") — GSI's 2026-07-31 update also
-> touched DEM5A (5m), and this repo's diff/skip pipeline has been
-> pre-verified to handle 5m's multi-product-type (DEM5A/5B/5C) wrinkle
-> correctly. Waiting on Hidenori to start dropping 5m region-pack zips
-> into `~/Downloads`, same manual flow as 1m — no further prep needed
-> until then. 10m needs nothing (no relevant GSI update since 2024).
+> Reported to `UNopenGIS/7#978` and `mapterhorn/mapterhorn#142` — both
+> live, nothing more needed there unless GSI announces a new update.
+> Check `UNopenGIS/7#978` for whether a new cycle has been proposed
+> since this checkpoint before assuming there's nothing to do.
 >
-> Check `UNopenGIS/7#978` for whether a new refresh cycle has been
-> proposed since this checkpoint (GSI publishes new surveys
-> continuously) before assuming there's nothing to do.
->
-> The live thread right now is actually on `slate`
-> (`mapterhorn-japan-bridge`) — this repo's completion is what
-> unblocks `jpnational1`'s national-scope expansion there. Check that
-> repo's own `HANDOVER.md` for current state. As of this checkpoint,
-> `jpnational5`'s D15 polygonize was still mid-run (footprint-
-> extraction phase, several hours left), and Hidenori explicitly chose
-> to **hold off** deciding on `jpnational1`'s national-scope expansion
-> until that scale-test finishes and is confirmed correct — don't
-> re-ask until then, just check whether it's done
-> (`polygon-store/jpnational5.gpkg` fresh mtime + `ogrinfo -so ...
-> union` `Feature Count: 1`).
+> **The live thread now is on `slate`** (`mapterhorn-japan-bridge`)
+> — that's where the actual next initiative is: after finishing the
+> current round of aggregation-pipeline bug fixes (D18-D21, found
+> while running the first genuinely-national `japan.pmtiles` build),
+> Hidenori wants to do a careful, analysis-first sync of `hfu/
+> mapterhorn` against its upstream (`mapterhorn/mapterhorn`), which is
+> 9 commits ahead as of this checkpoint — including a memory-reduction
+> PR (`57f8481`) that's directly relevant to real memory pressure
+> already observed on `slate` during this build. Check that repo's own
+> `HANDOVER.md`/`DECISIONS.md` for the current state of both the
+> `japan.pmtiles` build and the upstream-sync planning before doing
+> anything here — this repo (`japan-geotiff-dem`) has no further
+> queued work itself right now.
