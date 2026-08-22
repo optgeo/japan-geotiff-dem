@@ -790,3 +790,112 @@ files, all latest).
   had been landing as untracked stray files at the repo root on every
   local `build_filelists.py` run; not a new problem, just made
   explicit now).
+
+## D18: Silent data-corruption bug found in `gmldem2tif.rb` — root cause, fix, and partial remediation
+
+**Status**: Root cause found, `tif_valid?` fixed and pushed (`unopengis/gmldem2tif` commit
+`78c8db9`). 38 confirmed-broken 1m files fixed and re-published to
+`s3://smartmaps/japan-geotiff-dem/1/`, independently re-verified. Broader
+scope investigation still open (see HANDOVER.md).
+
+**Context**: While preparing `jpnational1`'s national-scope data for
+`mapterhorn-japan-bridge`'s real launch, `source_polygonize.py` hit
+`ERROR 1: ZSTDDecode:Error in ZSTD_decompressStream()` on a small
+subset of 1m files. Traced back through several rounds of investigation
+(see `mapterhorn-japan-bridge` DECISIONS.md's own entries from the same
+session for the discovery narrative).
+
+**Root cause #1, confirmed**: `gmldem2tif.rb`'s `tif_valid?` (used to
+decide whether to skip re-converting a mesh whose output already
+exists) only opened the dataset and fetched the raster band -- it never
+decoded any tile data. A file with an unreadable compressed block still
+passed. Fixed by adding `band.checksum` (forces GDAL to decode every
+block; a real read failure now raises, caught by the existing rescue).
+Verified against a known-broken file (correctly now `false`), a
+known-good file (still `true`), and a missing file (unchanged, `false`).
+
+**Root cause #2, more serious, found via deeper investigation**: beyond
+files that fail to decode at all (a loud, unambiguous failure), a
+second class exists where the file decodes fine but **silently contains
+wrong content** -- e.g. `FG-GML-4929-64-48-DEM1A-20250609.tif` was
+published as 0% valid data (fully nodata) when the raw GML source
+tuple-list clearly contains 41.22% real elevation values (347,805
+`地表面`-tagged tuples, confirmed by direct XML inspection). A fresh
+re-conversion of the *same* raw XML through the *same* (already-fixed)
+script produces output matching the raw source exactly. This means the
+bug is **not** in the XML content or in `gmldem2tif.rb`'s parsing logic
+per se (a hypothesis tested and ruled out directly -- checked for
+`tupleList` lines that don't split into exactly 2 comma-separated parts,
+found zero anomalies in the broken files) -- something about the
+**original conversion run's execution environment** (most likely
+related to `Process.fork`-based parallelism, given `-n $(nproc)` is
+used for every resolution) produced wrong output nondeterministically,
+in a way that a fresh re-run of the identical code does not reproduce.
+Root cause for *why* the original run went wrong remains unresolved.
+
+**Scope, established via systematic ground-truth cross-checking**
+(raw XML tuple-tag counts vs. GDAL-computed valid-percent, both for the
+currently-published file and a fresh reconversion): within the 10
+originally-suspect 2次メッシュ (`492964`-`492975`, `493004`, `493011`,
+736 files total), **45 files (6.11%) are confirmed corrupted** -- 38 with
+outright decode failures, 7 more "silently empty/wrong" without any
+decode error. All 45 show the identical signature: published version
+reports far too little (often exactly 0%) valid data; ground truth and
+a fresh reconversion agree with each other and with the raw source.
+
+**Critical scoping finding**: a national screening pass (computed valid-
+percent for **all 291,779** `jpnational1` 1m files on `slate`, no ground
+truth available at that scale, so only usable for the *unambiguous*
+signal) found **decode failures in exactly 38 files nationally -- all of
+them within mesh4 `4929`/`4930`, zero anywhere else**. Separately,
+targeted ground-truth-verified samples spread across other parts of the
+same `20250609`/`20250606` publish dates (11 meshes, 504 files, chosen
+specifically to be geographically distant from `4929`/`4930`) and 15
+more meshes within `4929`'s own lower sub-code range (`492900`-`492935`,
+778 files) all came back **zero real discrepancies**. This strongly
+suggests the corruption is not date-correlated or nationally spread --
+it appears tightly localized to a narrow sub-range within `4929`/`4930`
+specifically (sub-codes roughly `64`-`77`, plus a couple of outliers in
+`4930`), not the `20250609` publish batch as a whole (which spans 165
+2次メッシュ nationally) and not either mesh4 code's full extent (109
+2次メッシュ together). A comprehensive sweep of the full `4929`/`4930`
+area (109 meshes total) was in progress via manual GSI kiban-site
+downloads (raw GML has no bulk-download path found yet) when this entry
+was written -- 36/109 meshes checked as of the last count, all clean
+outside the already-known bad sub-range.
+
+**Remediation so far**:
+1. `tif_valid?` fixed and pushed (see above).
+2. The 38 confirmed decode-failure files: re-converted from the same
+   raw GML (re-downloaded from GSI's kiban site, since local `src/1`
+   had already been cleaned up post-publish -- see `HANDOVER.md`'s
+   earlier "storage discipline" entries) with the **correct**
+   `zstd-max` setting (an intermediate re-test session accidentally
+   used plain `zstd` first -- caught before upload via `--size-only`
+   dry-run showing implausibly many files as "changed"; re-done
+   correctly). Uploaded individually (not via `aws s3 sync`, to avoid
+   any risk from `--size-only`'s known blind spot -- one of the 45
+   confirmed-broken files, `4929-75-31`, coincidentally reconverts to
+   the *same byte size* as its broken original, which a size-only sync
+   would have silently skipped). Re-downloaded fresh from S3 after
+   upload and independently re-verified all 38 now decode cleanly.
+3. **Not yet done**: `latest_file_list.csv.gz` (this repo's own
+   manifest, `just filelists 1`) still has stale size/MD5 for these 38
+   files, since it wasn't regenerated after the S3 overwrite --
+   blocked by `source-coop` credential expiry (~1h TTL) at the moment
+   this was written. Regenerate before anything downstream trusts this
+   manifest's checksums for these filenames again.
+4. **Not yet done**: the remaining 7 confirmed-broken files (the
+   "silent, no decode error" class) have not been re-uploaded to S3
+   yet -- prioritized the unambiguous 38 first per Hidenori's own call.
+5. **Not yet done**: the 4929/4930 comprehensive sweep (73/109 meshes
+   remaining) to close out whether any further corruption exists in
+   this zone beyond the 45 already found.
+
+**Consequences**: this is a real, if apparently narrow, data-quality
+issue in already-published 1m data. 5m/10m use the identical tool and
+`-n $(nproc)` setting -- Hidenori's own working assumption (not yet
+tested, deliberately deferred) is a similar-order-of-magnitude risk
+exists there too, revisit once 1m is closed out. Any consumer who
+downloaded `4929`/`4930`-area 1m files before this session's fixes
+landed has the old, silently-wrong data.

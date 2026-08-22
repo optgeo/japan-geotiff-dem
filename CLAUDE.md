@@ -6,6 +6,9 @@ Guidance for Claude working on this repository.
 *why* things are the way they are (ADR log — read it before
 reconsidering something that looks arbitrary). `HANDOVER.md` is *what
 happened*, session by session, and what to do first if resuming cold.
+`PLAYBOOK.md` is the short, standalone checklist for kicking off the
+*next* major GSI DEM update from scratch — read that one first if
+that's what's starting.
 
 ## Language policy
 

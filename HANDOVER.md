@@ -1952,3 +1952,131 @@ Paste this after `/clear` to pick up exactly here:
 > `japan.pmtiles` build and the upstream-sync planning before doing
 > anything here — this repo (`japan-geotiff-dem`) has no further
 > queued work itself right now.
+
+## 2026-08-22 (late session, from `aalto`): silent-corruption bug in `gmldem2tif.rb` -- found, partially fixed, investigation ongoing
+
+Discovered while preparing `mapterhorn-japan-bridge`'s `jpnational1` for
+its real national launch -- see that repo's own `HANDOVER.md`/
+`DECISIONS.md` (same session) for the fuller cross-repo narrative. Full
+technical writeup: this repo's own `DECISIONS.md` D18.
+
+**State at the point this was written** (Hidenori about to be away
+~20h):
+
+- `unopengis/gmldem2tif` `tif_valid?` fixed and pushed (`78c8db9`) --
+  now forces a real pixel decode (`band.checksum`) instead of just
+  opening the file header, so a broken re-conversion can't silently be
+  marked "already done" again.
+- 38 confirmed decode-failure 1m files (all within mesh4 `4929`/`4930`)
+  re-converted correctly (`zstd-max`, matching this repo's own
+  standard -- an earlier pass in the same session accidentally used
+  plain `zstd`, caught before upload, redone) and **uploaded
+  individually** to `s3://smartmaps/japan-geotiff-dem/1/` (not via
+  `aws s3 sync --size-only`, since one of the 45 total confirmed-broken
+  files reconverts to the same byte size as its broken original --
+  a size-only sync would silently skip exactly that one). Re-downloaded
+  fresh post-upload and independently re-verified: all 38 now decode
+  cleanly.
+- These same 38 corrected files were also copied directly into
+  `mapterhorn-japan-bridge`'s `jpnational1` local source-store on
+  `slate` (`pipelines/source-store/jpnational1/`), bypassing that
+  project's own checksum-based download-skip logic (which would
+  otherwise never notice the S3-side fix, since it only compares
+  against its manifest's stale MD5).
+
+**Left undone, exactly where this session stopped**:
+
+1. **`just filelists 1` (regenerate `latest_file_list.csv.gz`) --
+   blocked by `source-coop` credential expiry** (`Error: Cached
+   credentials have expired. Run 'source-coop login' to refresh`) at
+   the moment this was written. This is the very next thing to do on
+   resume: `source-coop login`, then `just filelists 1`. Until this
+   runs, the manifest's recorded size/MD5 for the 38 corrected
+   filenames is stale (still describes the broken versions) -- any
+   downstream consumer trusting this manifest's checksums (including
+   `mapterhorn-japan-bridge`'s own `jpnational1` re-download logic) is
+   at risk of a false checksum mismatch or, worse, silently treating
+   the already-fixed local copy as needing replacement.
+2. **The remaining 7 confirmed-broken files** (silently-empty/wrong,
+   no decode error -- found only via ground-truth XML comparison, not
+   yet re-uploaded). Prioritized the unambiguous 38 first per
+   Hidenori's explicit call ("先に38件"). List of all 45 (with which
+   7 are still outstanding) is derivable by re-running this session's
+   `systematic_check.py`-style comparison against
+   `/private/tmp/.../scratchpad/reconvert/{src,dst}` if that scratch
+   directory still exists on `aalto`, or by re-deriving from
+   `DECISIONS.md` D18's own file list -- not re-copied into this repo
+   to keep this entry focused; check the `mapterhorn-japan-bridge`
+   session transcript/memory if it's not obviously reconstructable.
+3. **Comprehensive `4929`/`4930` sweep, 36/109 2次メッシュ checked
+   as of this entry** (all clean outside the already-known bad
+   sub-code range `64`-`77`-ish). Hidenori has been manually
+   downloading the remaining meshes one/few at a time via GSI's kiban
+   site (no bulk-download path found for raw GML) -- 73 meshes
+   remain. Full target list, and which of the 109 are already
+   confirmed clean vs. still unchecked, needs to be reconstructed from
+   the `mapterhorn-japan-bridge` session (this repo's own scratch
+   files don't hold that list) -- **do not treat "36/109 checked" as
+   this repo's own durable state; re-derive it from that other
+   session/transcript on resume, don't guess.**
+4. **5m/10m**: same tool, same `-n $(nproc)` parallel setting, never
+   tested. Deliberately deferred (Hidenori's own call, "まずは1mに集中
+   しよう") -- revisit once 1m is fully closed out.
+
+**Working hypothesis on root cause, not yet confirmed**: since a fresh
+re-run of the *identical* `gmldem2tif.rb` against the *identical* raw
+XML reliably reproduces the correct result, the bug is not in the
+parsing logic itself (a specific hypothesis -- malformed `tupleList`
+lines with an unexpected comma count silently shifting the array offset
+-- was tested directly and ruled out, zero such anomalies found in any
+broken file's raw XML). Something about the *original* conversion run's
+execution environment is the more likely suspect (`Process.fork`-based
+parallelism is the standing suspicion, unconfirmed) -- this remains
+open; no further investigation attempted this session beyond ruling
+out the XML-content hypothesis.
+
+**Note on scope of this note**: personal correspondence with `Mapterhorn`
+maintainer Oliver Wipfli about this issue happened during this session
+(a heads-up was sent) -- deliberately not detailed here per Hidenori's
+own instruction that person-to-person correspondence stays out of the
+repo; the underlying technical finding above is fair game to document,
+the conversation itself is not.
+
+### Resume prompt
+
+> Resuming `japan-geotiff-dem` (`aalto`, `/Users/hfu/japan-geotiff-dem`).
+> Read this file's own "2026-08-22 (late session)" entry and
+> `DECISIONS.md` D18 in full before touching anything -- this is a real,
+> partially-fixed data-corruption issue in already-published 1m data,
+> not routine housekeeping.
+>
+> **First step, literally**: `source-coop login`, then `just filelists 1`
+> to regenerate `latest_file_list.csv.gz` -- this was blocked by
+> credential expiry at the exact point this session stopped and is the
+> single most important loose end (everything downstream trusts this
+> manifest's checksums).
+>
+> **Then, in roughly this order** (none started, none blocking each
+> other -- pick based on what Hidenori wants to prioritize):
+> 1. Upload the remaining 7 confirmed-broken files (silent corruption,
+>    no decode error) -- re-derive the exact list per this entry's own
+>    point 2 above if not already obvious from context.
+> 2. Continue the `4929`/`4930` comprehensive sweep (73/109 2次メッシュ
+>    still unchecked as of this entry) -- coordinate with the
+>    `mapterhorn-japan-bridge` session, since the mesh-code list and
+>    ground-truth verification tooling both live in that session's own
+>    scratch space, not here.
+> 3. Once `4929`/`4930` is closed out (or Hidenori decides the sample
+>    is convincing enough), decide whether to test 5m/10m for the same
+>    bug class.
+> 4. Cross-check with `mapterhorn-japan-bridge`: that project's own
+>    `jpnational1` source-store on `slate` needs the same 38 (soon 45)
+>    corrected files it already has a local copy of (done for the 38,
+>    this session) reflected in *its own* manifest too, and its
+>    `source_bounds.py`/`source_polygonize.py` outputs may be very
+>    slightly stale for these specific mesh cells (low priority --
+>    `bounds.csv` never reads pixel data so is unaffected; polygon-store
+>    is unaffected downstream since `aggregation_covering.py` doesn't
+>    consume it -- confirmed this session, not just assumed).
+>
+> Converse in Japanese, per this repo's own language policy.
